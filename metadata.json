@@ -1,0 +1,8 @@
+{
+  "name": "ASSAM EASY TRIP - Bokakhat, Golaghat, Assam",
+  "description": "ASSAM EASY TRIP - Regional ride booking app for Bokakhat, Golaghat, Kaziranga. Head Office: Bokakhat, Golaghat, Assam pin 785612. Helpline: 8638803320, 7002754262.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
