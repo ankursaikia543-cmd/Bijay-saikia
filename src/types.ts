@@ -8,20 +8,25 @@ export interface VehicleConfig {
 
 export interface Booking {
   id: number;
+  customerName?: string;
+  name: string;
+  phone: string;
+  from?: string;
   fromName: string;
+  to?: string;
   toName: string;
   fromLat: number;
   fromLng: number;
   toLat: number;
   toLng: number;
   km: string;
+  fare?: string;
   price: string;
   vehicle: string;
-  phone: string;
-  name: string;
-  otp: number;
+  otp: number | string;
   status: 'pending' | 'accepted' | 'completed' | 'cancelled';
   time: string;
+  driverId?: string;
   driver?: string;
   driverPhone?: string;
   driverName?: string;
@@ -30,10 +35,13 @@ export interface Booking {
   driverLoc?: { lat: number; lng: number };
   preferredDriver?: string;
   completedAt?: string;
+  cancelledAt?: string;
+  createdAt?: any;
 }
 
 export interface Driver {
   id: number;
+  driverId?: string;
   name: string;
   phone: string;
   pass: string;
@@ -41,6 +49,8 @@ export interface Driver {
   vehno: string;
   vtype: string;
   loc: string;
+  lat?: number;
+  lng?: number;
   licence?: string;
   epfo?: string;
   esic?: string;

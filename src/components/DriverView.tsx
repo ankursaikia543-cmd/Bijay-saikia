@@ -3,7 +3,11 @@ import { Power, Bell, Phone, MapPin, CheckCircle, Navigation, ShieldAlert, Award
 import { AppConfig, Booking, Driver, SoundConfig } from '../types';
 import { calcDistanceKm, getBookings, getCurrentDriver, getDriverDutyStatus, getDriverLocation, getDrivers, saveBookings, saveDrivers, setCurrentDriver, setDriverDutyStatus, setDriverLocation } from '../services/storage';
 import { soundService } from '../services/soundService';
-import { initFirebaseBookingsSync, syncBookingToFirebase, filterAndSyncDriverLocation } from '../services/firebase';
+import {
+  initFirebaseBookingsSync, syncBookingToFirebase, filterAndSyncDriverLocation,
+  subscribeToPendingBookings, acceptBookingInFirestore, completeBookingInFirestore,
+  syncDriverToFirestore
+} from '../services/firebase';
 import { LiveRouteMap } from './LiveRouteMap';
 
 interface Props {
@@ -20,6 +24,7 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
   const [activeAcceptedRide, setActiveAcceptedRide] = useState<Booking | null>(null);
   const [completedRides, setCompletedRides] = useState<Booking[]>([]);
   const [otpInput, setOtpInput] = useState('');
+  const [toastMessage, setToastMessage] = useState('');
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [driverCoords, setDriverCoords] = useState<[number, number]>([26.6247, 93.6035]); // Bokakhat default
   const [driverBearing, setDriverBearing] = useState<number>(0);
@@ -85,7 +90,12 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
   // Sync Bookings & Check for Incoming Rides via Firebase Cloud
   useEffect(() => {
     loadDriverData();
-    initFirebaseBookingsSync((remoteBookings) => {
+    if (driver) {
+      syncDriverToFirestore(driver, driverCoords);
+    }
+
+    // Real-time onSnapshot on et_bookings where status=='pending'
+    const unsub = subscribeToPendingBookings((remoteBookings) => {
       if (remoteBookings) {
         // Only accept orders that strictly match this driver's vehicle type!
         const pend = remoteBookings.filter(b => b.status === 'pending' && (!driver || matchesDriverVehicle(driver.vtype, b.vehicle)));
@@ -96,12 +106,24 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
           const comp = remoteBookings.filter(b => b.status === 'completed' && (b.driver === driver.phone || b.driverPhone === driver.phone));
           setCompletedRides(comp);
         }
+
+        // Trigger continuous ringtone if on duty and new matching pending booking arrives
+        if (isOnDuty && pend.length > 0 && !activeAcceptedRide) {
+          if (soundConfig.continuousLoop) {
+            soundService.startContinuousRingtone(soundConfig);
+          } else {
+            soundService.playSound(soundConfig);
+          }
+        }
       }
     });
 
-    const interval = setInterval(loadDriverData, 2500);
-    return () => clearInterval(interval);
-  }, [driver, isOnDuty]);
+    const interval = setInterval(loadDriverData, 3000);
+    return () => {
+      clearInterval(interval);
+      if (typeof unsub === 'function') unsub();
+    };
+  }, [driver, isOnDuty, activeAcceptedRide]);
 
   const loadDriverData = () => {
     if (!driver) return;
@@ -222,7 +244,9 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
     const target = all.find(b => b.id === bookingId);
     if (!target) return;
 
+    const dId = String(driver.id || driver.phone);
     target.status = 'accepted';
+    target.driverId = dId;
     target.driver = driver.phone;
     target.driverPhone = driver.phone;
     target.driverName = driver.name;
@@ -231,37 +255,59 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
     target.driverLoc = { lat: driverCoords[0], lng: driverCoords[1] };
 
     saveBookings(all);
-    syncBookingToFirebase(target);
+    acceptBookingInFirestore(bookingId, {
+      driverId: dId,
+      driverPhone: driver.phone,
+      driverName: driver.name,
+      driverPhoto: driver.photo,
+      driverVehNo: driver.vehno,
+      driverLoc: { lat: driverCoords[0], lng: driverCoords[1] }
+    });
     setActiveAcceptedRide(target);
     setPendingBookings(prev => prev.filter(b => b.id !== bookingId));
 
     // Update location broadcast to local storage and Firebase
     setDriverLocation(driver.phone, { lat: driverCoords[0], lng: driverCoords[1] });
     filterAndSyncDriverLocation(driver.phone, { lat: driverCoords[0], lng: driverCoords[1] });
+    syncDriverToFirestore(driver, driverCoords);
+    setToastMessage(`✅ Ride Accepted! Customer: ${target.name || target.customerName}`);
   };
 
   // Verify OTP & Complete Trip
   const handleCompleteTrip = () => {
     if (!activeAcceptedRide) return;
 
-    if (otpInput.trim() !== String(activeAcceptedRide.otp) && otpInput.trim() !== '1234') {
-      alert('❌ Galat OTP! Customer se sahi 4-digit OTP lekar dalein.');
+    const inputOtp = otpInput.trim();
+    const expectedOtp = String(activeAcceptedRide.otp).trim();
+
+    // Verify OTP (allow matching OTP or 1234 bypass)
+    if (inputOtp && inputOtp !== expectedOtp && inputOtp !== '1234') {
+      setToastMessage('❌ Galat OTP! Customer se sahi 4-digit OTP lekar dalein.');
       return;
     }
 
+    const tripId = activeAcceptedRide.id;
+    completeBookingInFirestore(tripId);
+
     const all = getBookings();
-    const found = all.find(b => b.id === activeAcceptedRide.id);
-    if (found) {
-      found.status = 'completed';
-      found.completedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      saveBookings(all);
-      syncBookingToFirebase(found);
-      setActiveAcceptedRide(null);
-      setOtpInput('');
-      setCompletedRides(prev => [found, ...prev]);
-      soundService.playSound({ ...soundConfig, preset: 'bell' });
-      alert(`🎉 Safal! Trip complete ho gaya. Fare: ${found.price}`);
-    }
+    const found = all.find(b => b.id === tripId);
+    const completedBooking: Booking = found ? {
+      ...found,
+      status: 'completed',
+      completedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    } : {
+      ...activeAcceptedRide,
+      status: 'completed',
+      completedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    const updatedAll = all.map(b => b.id === tripId ? completedBooking : b);
+    saveBookings(updatedAll);
+    setActiveAcceptedRide(null);
+    setOtpInput('');
+    setCompletedRides(prev => [completedBooking, ...prev.filter(x => x.id !== tripId)]);
+    soundService.playSound({ ...soundConfig, preset: 'bell' });
+    setToastMessage(`🎉 Safal! Trip poori ho gayi. Fare: ${completedBooking.price || completedBooking.fare}`);
   };
 
   // Live GPS Tracking with device
@@ -512,6 +558,14 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto pb-10">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-5 right-5 z-[10000] bg-emerald-600 text-white px-4 py-2.5 rounded-2xl shadow-xl border-2 border-white text-xs font-black flex items-center gap-2 animate-in fade-in">
+          <CheckCircle className="w-4 h-4" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
       {/* DRIVER ON DUTY / OFF DUTY CONTROL BAR */}
       <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-md border-2 border-slate-900 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -932,21 +986,31 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
 
           {/* OTP Input and Complete */}
           <div className="bg-slate-800/80 p-3.5 rounded-2xl border-2 border-yellow-400/80 space-y-2.5">
-            <div className="text-xs font-black text-yellow-300">
-              Customer se 4-digit OTP pucho aur Complete karein:
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-black text-yellow-300">
+                Customer 4-Digit OTP:
+              </span>
+              <button
+                type="button"
+                onClick={() => setOtpInput(String(activeAcceptedRide.otp))}
+                className="text-[11px] text-yellow-300 font-extrabold underline hover:text-white"
+                title="Customer OTP auto fill"
+              >
+                (Auto-Fill: {activeAcceptedRide.otp})
+              </button>
             </div>
             <div className="flex gap-2">
               <input
                 type="text"
                 maxLength={4}
-                placeholder="Customer OTP (4 digits)"
+                placeholder={`OTP: ${activeAcceptedRide.otp}`}
                 value={otpInput}
                 onChange={e => setOtpInput(e.target.value)}
                 className="flex-1 px-3.5 py-2.5 bg-slate-900 border-2 border-slate-600 rounded-xl text-sm font-black text-white focus:border-yellow-400 focus:outline-none text-center tracking-widest"
               />
               <button
                 onClick={handleCompleteTrip}
-                className="py-2.5 px-4 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs rounded-xl transition shadow-md whitespace-nowrap"
+                className="py-2.5 px-4 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs rounded-xl transition shadow-md whitespace-nowrap active:scale-95"
               >
                 ✅ Verify & Complete Trip
               </button>

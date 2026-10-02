@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>ASSAM EASY TRIP - Admin Master Control (Live Firestore)</title>
+  <meta name="theme-color" content="#0f172a">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans pb-12">
+  <!-- Top Navigation -->
+  <header class="bg-slate-900 border-b border-yellow-400/40 p-4 sticky top-0 z-50 shadow-lg">
+    <div class="max-w-5xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-yellow-400 text-slate-950 font-black text-2xl flex items-center justify-center shadow-md">
+          ⚙️
+        </div>
+        <div>
+          <h1 class="text-base font-black text-yellow-400 leading-tight">ASSAM EASY TRIP</h1>
+          <p class="text-xs text-slate-400 font-semibold">Admin Master Control • Live Firestore</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="/?portal=admin" class="px-3 py-1.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 text-xs font-black shadow-sm transition">
+          🖥️ Open React Admin
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto w-full p-4 space-y-5">
+    <!-- Quick Stats Cards -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="bg-slate-900 p-3.5 rounded-2xl border border-slate-800">
+        <span class="text-[11px] text-slate-400 font-bold block">Total Bookings</span>
+        <span id="statTotalBookings" class="text-xl font-black text-yellow-400">0</span>
+      </div>
+      <div class="bg-slate-900 p-3.5 rounded-2xl border border-slate-800">
+        <span class="text-[11px] text-slate-400 font-bold block">Pending Rides</span>
+        <span id="statPendingBookings" class="text-xl font-black text-amber-400">0</span>
+      </div>
+      <div class="bg-slate-900 p-3.5 rounded-2xl border border-slate-800">
+        <span class="text-[11px] text-slate-400 font-bold block">Accepted / Active</span>
+        <span id="statAcceptedBookings" class="text-xl font-black text-blue-400">0</span>
+      </div>
+      <div class="bg-slate-900 p-3.5 rounded-2xl border border-slate-800">
+        <span class="text-[11px] text-slate-400 font-bold block">Active Fleet Drivers</span>
+        <span id="statTotalDrivers" class="text-xl font-black text-emerald-400">0</span>
+      </div>
+    </div>
+
+    <!-- Live Fleet Map (onSnapshot on et_drivers collection) -->
+    <div class="bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-800 shadow-xl space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+        <div>
+          <h2 class="text-base font-black text-white flex items-center gap-2">
+            <span>🗺️ Admin Fleet Map</span>
+            <span class="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-bold">
+              Live onSnapshot: et_drivers
+            </span>
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">Showing ALL registered and active drivers with markers (looping through all docs)</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="recenterBtn" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700">
+            📍 Center Bokakhat
+          </button>
+        </div>
+      </div>
+
+      <!-- Leaflet Map Container -->
+      <div id="adminFleetMap" class="w-full h-80 sm:h-96 rounded-2xl border border-slate-800 relative z-10"></div>
+
+      <!-- Drivers List Summary below Map -->
+      <div class="pt-2">
+        <h3 class="text-xs font-bold text-slate-400 mb-2">Fleet Drivers Status</h3>
+        <div id="driversListContainer" class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-h-40 overflow-y-auto pr-1 text-xs">
+          <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 text-slate-500 text-center col-span-3">
+            Loading drivers from Firestore...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Real-time Firestore All Bookings List (onSnapshot on et_bookings) -->
+    <div class="bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-800 shadow-xl space-y-3">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div>
+          <h2 class="text-base font-black text-white flex items-center gap-2">
+            <span>📋 All Bookings (Real-Time Firestore)</span>
+            <span id="allBookingsBadge" class="bg-yellow-400 text-slate-950 text-xs px-2.5 py-0.5 rounded-full font-black">0</span>
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">onSnapshot on <code>et_bookings</code> collection</p>
+        </div>
+        <div class="flex items-center gap-1.5 text-xs">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="text-slate-400 font-semibold">Auto-Syncing</span>
+        </div>
+      </div>
+
+      <!-- Bookings Table / Cards -->
+      <div id="adminBookingsContainer" class="space-y-2.5 pt-1">
+        <div class="p-8 text-center text-slate-500 text-xs font-semibold">
+          Loading bookings from Firestore...
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Firebase Modular SDK & Admin Map Logic -->
+  <script type="module">
+    import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+    import {
+      getFirestore,
+      collection,
+      onSnapshot,
+      doc,
+      setDoc
+    } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAl3Y4UJ9XdI3xBXNF6PuIAypz3PjYv1ng",
+      authDomain: "easy-trip-d601a.firebaseapp.com",
+      databaseURL: "https://easy-trip-d601a-default-rtdb.firebaseio.com",
+      projectId: "easy-trip-d601a",
+      storageBucket: "easy-trip-d601a.appspot.com",
+      messagingSenderId: "123456789000",
+      appId: "1:123456789000:web:abcdef123456"
+    };
+
+    let app;
+    try {
+      app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+    } catch (e) {
+      console.warn('Firebase init:', e);
+    }
+    const db = getFirestore(app);
+
+    // 1. Initialize Leaflet Map
+    const map = L.map('adminFleetMap', {
+      center: [26.6247, 93.6035], // Bokakhat, Golaghat, Assam
+      zoom: 13,
+      attributionControl: false
+    });
+
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19
+    }).addTo(map);
+
+    const driversLayer = L.layerGroup().addTo(map);
+
+    document.getElementById('recenterBtn').addEventListener('click', () => {
+      map.setView([26.6247, 93.6035], 13);
+    });
+
+    // 2. Real-time onSnapshot on et_drivers collection (Show ALL drivers with markers)
+    const driversColl = collection(db, 'et_drivers');
+    onSnapshot(driversColl, (snapshot) => {
+      driversLayer.clearLayers();
+      const listContainer = document.getElementById('driversListContainer');
+      listContainer.innerHTML = '';
+
+      let driverCount = 0;
+      const bounds = [];
+
+      snapshot.forEach((docSnap) => {
+        driverCount++;
+        const d = docSnap.data();
+        const dLat = Number(d.lat || 26.6247);
+        const dLng = Number(d.lng || 93.6035);
+        const isDuty = d.isOnDuty !== false;
+        const vtype = d.vtype || 'Auto';
+        const name = d.name || 'Driver';
+        const phone = d.phone || docSnap.id;
+        const vehno = d.vehno || 'AS-05-XXXX';
+        const loc = d.loc || 'Bokakhat';
+
+        const iconSymbol = vtype === 'Bike' ? '🏍️' : vtype === 'Scooty' ? '🛵' : vtype === 'Auto' ? '🛺' : '🚗';
+
+        const customIcon = L.divIcon({
+          className: 'admin-driver-pin',
+          html: `
+            <div style="display:flex; flex-direction:column; align-items:center; transform: translate(-50%, -50%); cursor:pointer;">
+              <div style="background:${isDuty ? '#10b981' : '#64748b'}; color:#ffffff; border:2px solid #0f172a; border-radius:18px; padding:3px 8px; font-size:11px; font-weight:800; display:flex; align-items:center; gap:4px; box-shadow:0 3px 8px rgba(0,0,0,0.4); white-space:nowrap;">
+                <span>${iconSymbol}</span>
+                <span>${name}</span>
+              </div>
+              <div style="width:0; height:0; border-left:5px solid transparent; border-right:5px solid transparent; border-top:6px solid #0f172a; margin-top:-1px;"></div>
+            </div>
+          `,
+          iconSize: [0, 0],
+          iconAnchor: [0, 0]
+        });
+
+        const marker = L.marker([dLat, dLng], { icon: customIcon });
+        marker.bindPopup(`
+          <div style="font-family:sans-serif; min-width:140px; font-size:12px; color:#0f172a;">
+            <strong style="font-size:13px; color:#0f172a;">${name}</strong> (${vtype})<br/>
+            <span>🚗 ${vehno}</span><br/>
+            <span>📍 ${loc}</span><br/>
+            <span>📞 <a href="tel:${phone}" style="color:#2563eb; font-weight:bold;">${phone}</a></span><br/>
+            <span style="font-weight:bold; color:${isDuty ? '#16a34a' : '#dc2626'};">${isDuty ? '🟢 On Duty' : '🔴 Off Duty'}</span>
+          </div>
+        `);
+        marker.addTo(driversLayer);
+        bounds.push([dLat, dLng]);
+
+        // Add driver card in summary
+        const card = document.createElement('div');
+        card.className = 'p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between gap-2';
+        card.innerHTML = `
+          <div>
+            <div class="font-bold text-white">${name} <span class="text-slate-400 text-[10px]">(${vtype})</span></div>
+            <div class="text-[10px] text-slate-400">${vehno} • 📞 ${phone}</div>
+          </div>
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isDuty ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'}">
+            ${isDuty ? 'ON DUTY' : 'OFF'}
+          </span>
+        `;
+        listContainer.appendChild(card);
+      });
+
+      document.getElementById('statTotalDrivers').textContent = driverCount;
+
+      if (bounds.length > 0) {
+        if (bounds.length === 1) {
+          map.setView(bounds[0], 14);
+        } else {
+          map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40], maxZoom: 15 });
+        }
+      } else {
+        listContainer.innerHTML = '<div class="p-3 text-slate-500 text-center col-span-3">No drivers found in Firestore et_drivers.</div>';
+      }
+    }, (error) => {
+      console.warn('onSnapshot et_drivers error:', error);
+    });
+
+    // 3. Real-time onSnapshot on et_bookings to show ALL bookings in Admin
+    const bookingsColl = collection(db, 'et_bookings');
+    onSnapshot(bookingsColl, (snapshot) => {
+      const container = document.getElementById('adminBookingsContainer');
+      const allBadge = document.getElementById('allBookingsBadge');
+
+      const bookings = [];
+      let pendingCount = 0;
+      let acceptedCount = 0;
+
+      snapshot.forEach((docSnap) => {
+        const b = { docId: docSnap.id, ...docSnap.data() };
+        bookings.push(b);
+        if (b.status === 'pending') pendingCount++;
+        if (b.status === 'accepted') acceptedCount++;
+      });
+
+      allBadge.textContent = bookings.length;
+      document.getElementById('statTotalBookings').textContent = bookings.length;
+      document.getElementById('statPendingBookings').textContent = pendingCount;
+      document.getElementById('statAcceptedBookings').textContent = acceptedCount;
+
+      if (bookings.length === 0) {
+        container.innerHTML = `
+          <div class="p-8 text-center text-slate-500 text-xs font-semibold">
+            Firestore collection et_bookings me koi booking nahi hai.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = '';
+      bookings.sort((a, b) => Number(b.id || b.docId) - Number(a.id || a.docId));
+
+      bookings.forEach((b) => {
+        const card = document.createElement('div');
+        card.className = 'bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-2';
+
+        const custName = b.customerName || b.name || 'Customer';
+        const phone = b.phone || 'N/A';
+        const from = b.from || b.fromName || 'Pickup';
+        const to = b.to || b.toName || 'Drop';
+        const fare = b.fare || b.price || '₹50';
+        const status = b.status || 'pending';
+        const vehicle = b.vehicle || 'Auto';
+        const driverName = b.driverName || b.driver || 'Unassigned';
+
+        let statusBadge = 'bg-amber-500/20 text-amber-400 border border-amber-500/30';
+        if (status === 'accepted') statusBadge = 'bg-blue-500/20 text-blue-400 border border-blue-500/30';
+        if (status === 'completed') statusBadge = 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+        if (status === 'cancelled') statusBadge = 'bg-rose-500/20 text-rose-400 border border-rose-500/30';
+
+        card.innerHTML = `
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-sm text-white">${custName}</span>
+              <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md">${vehicle}</span>
+              <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${statusBadge}">${status}</span>
+            </div>
+            <div class="text-sm font-black text-yellow-400">${fare}</div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-slate-300">
+            <div><span class="text-emerald-400 font-bold">🟢 From:</span> ${from}</div>
+            <div><span class="text-rose-400 font-bold">🏁 To:</span> ${to}</div>
+            <div><span class="text-slate-400 font-bold">📞 Cust:</span> <a href="tel:${phone}" class="text-yellow-400 underline">${phone}</a></div>
+            <div><span class="text-slate-400 font-bold">🚗 Driver:</span> <span class="text-white">${driverName}</span></div>
+          </div>
+        `;
+
+        container.appendChild(card);
+      });
+    }, (error) => {
+      console.warn('onSnapshot et_bookings error:', error);
+    });
+  </script>
+</body>
+</html>

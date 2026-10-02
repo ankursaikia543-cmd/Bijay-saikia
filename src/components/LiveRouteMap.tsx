@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { calcBearing } from '../services/storage';
+import { Driver } from '../types';
 
 interface Props {
   mapId: string;
@@ -14,6 +15,7 @@ interface Props {
   driverName?: string;
   driverSpeed?: number;
   isDriverMoving?: boolean;
+  fleetDrivers?: Driver[];
   onMapClick?: (coords: [number, number]) => void;
   className?: string;
   height?: string;
@@ -35,6 +37,7 @@ export const LiveRouteMap: React.FC<Props> = ({
   driverName = 'Driver',
   driverSpeed = 0,
   isDriverMoving = false,
+  fleetDrivers,
   onMapClick,
   className = '',
   height = '380px',
@@ -51,6 +54,7 @@ export const LiveRouteMap: React.FC<Props> = ({
   const blueRouteLineRef = useRef<L.Layer | null>(null);
   const driverToPickupLineRef = useRef<L.Polyline | null>(null);
   const prevDriverCoordsRef = useRef<[number, number] | null>(null);
+  const fleetLayerRef = useRef<L.LayerGroup | null>(null);
   const onMapClickRef = useRef(onMapClick);
 
   useEffect(() => {
@@ -300,13 +304,62 @@ export const LiveRouteMap: React.FC<Props> = ({
     if (toCoords && toCoords[0]) boundsPoints.push(toCoords);
     if (driverCoords && driverCoords[0]) boundsPoints.push(driverCoords);
 
+    // 6. Fleet Drivers Layer (Loop through all docs to show ALL drivers with markers on admin map)
+    if (fleetDrivers && fleetDrivers.length > 0) {
+      if (!fleetLayerRef.current) {
+        fleetLayerRef.current = L.layerGroup().addTo(map);
+      } else {
+        fleetLayerRef.current.clearLayers();
+      }
+
+      fleetDrivers.forEach((d) => {
+        const dLat = Number(d.lat || 26.6247);
+        const dLng = Number(d.lng || 93.6035);
+        if (isNaN(dLat) || isNaN(dLng)) return;
+
+        const isDuty = d.isOnDuty !== false;
+        const iconSymbol = d.vtype === 'Bike' ? '🏍️' : d.vtype === 'Scooty' ? '🛵' : d.vtype === 'Auto' ? '🛺' : '🚗';
+        const iconHtml = `
+          <div style="display:flex; flex-direction:column; align-items:center; transform: translate(-50%, -50%); cursor:pointer;">
+            <div style="background:${isDuty ? '#10b981' : '#64748b'}; color:#ffffff; border:2px solid #0f172a; border-radius:18px; padding:3px 8px; font-size:11px; font-weight:800; display:flex; align-items:center; gap:4px; box-shadow:0 3px 8px rgba(0,0,0,0.35); white-space:nowrap;">
+              <span>${iconSymbol}</span>
+              <span>${d.name}</span>
+            </div>
+            <div style="width:0; height:0; border-left:5px solid transparent; border-right:5px solid transparent; border-top:6px solid #0f172a; margin-top:-1px;"></div>
+          </div>
+        `;
+
+        const fleetIcon = L.divIcon({
+          className: 'fleet-driver-pin',
+          html: iconHtml,
+          iconSize: [0, 0],
+          iconAnchor: [0, 0]
+        });
+
+        const marker = L.marker([dLat, dLng], { icon: fleetIcon });
+        marker.bindPopup(`
+          <div style="font-family:sans-serif; min-width:140px; font-size:12px; color:#0f172a;">
+            <strong style="font-size:13px; color:#0f172a;">${d.name}</strong> (${d.vtype})<br/>
+            <span>🚗 ${d.vehno}</span><br/>
+            <span>📍 ${d.loc}</span><br/>
+            <span>📞 <a href="tel:${d.phone}" style="color:#2563eb; font-weight:bold;">${d.phone}</a></span><br/>
+            <span style="font-weight:bold; color:${isDuty ? '#16a34a' : '#dc2626'};">${isDuty ? '🟢 On Duty' : '🔴 Off Duty'}</span>
+          </div>
+        `);
+        marker.addTo(fleetLayerRef.current!);
+        boundsPoints.push([dLat, dLng]);
+      });
+    } else if (fleetLayerRef.current) {
+      fleetLayerRef.current.clearLayers();
+    }
+
     if (boundsPoints.length >= 2) {
       const bounds = L.latLngBounds(boundsPoints);
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
     } else if (boundsPoints.length === 1) {
       map.setView(boundsPoints[0], 14);
     }
-  }, [fromCoords, toCoords, driverCoords, driverBearing, driverSpeed, showBlueDotLine, fromLabel, toLabel, driverVehicleIcon]);
+  }, [fromCoords, toCoords, driverCoords, driverBearing, driverSpeed, showBlueDotLine, fromLabel, toLabel, driverVehicleIcon, fleetDrivers]);
 
   return (
     <div className={`relative overflow-hidden rounded-2xl border-2 border-slate-900 shadow-md ${className}`}>

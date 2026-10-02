@@ -24,6 +24,20 @@ export default function App() {
   const [logoTaps, setLogoTaps] = useState(0);
   const [adminUnlocked, setAdminUnlocked] = useState(false);
 
+  // Check URL query parameters for portal direct links (e.g. ?portal=driver, ?portal=admin)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const portal = params.get('portal');
+      if (portal === 'driver') {
+        setActiveTab('driver');
+      } else if (portal === 'admin') {
+        setAdminUnlocked(true);
+        setActiveTab('admin');
+      }
+    } catch (e) {}
+  }, []);
+
   // Initialize Firebase Cloud Realtime Sync (Auto updates in APK and Web)
   useEffect(() => {
     initFirebaseConfigSync((remoteCfg) => {

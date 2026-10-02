@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import {
   ShieldCheck, Download, Trash2, CheckCircle, XCircle, Lock, Unlock, Plus,
@@ -10,6 +10,7 @@ import {
   getBookings, getDrivers, getDriverPayments, saveAppConfig, saveBookings,
   saveDrivers, saveDriverPayments
 } from '../services/storage';
+import { subscribeToAllBookings, subscribeToAllDrivers } from '../services/firebase';
 import { LiveRouteMap } from './LiveRouteMap';
 
 interface Props {
@@ -60,6 +61,34 @@ export const AdminView: React.FC<Props> = ({ config, onUpdateConfig }) => {
     setSuccessToast(msg);
     setTimeout(() => setSuccessToast(''), 3000);
   };
+
+  // Real-time Firestore onSnapshot for Bookings & Fleet Drivers
+  useEffect(() => {
+    const unsubBookings = subscribeToAllBookings((remoteBookings) => {
+      if (remoteBookings) {
+        setBookings(remoteBookings);
+        setSelectedMapBooking(prev => {
+          if (!prev && remoteBookings.length > 0) return remoteBookings[0];
+          if (prev) {
+            const updated = remoteBookings.find(b => b.id === prev.id);
+            return updated || prev;
+          }
+          return null;
+        });
+      }
+    });
+
+    const unsubDrivers = subscribeToAllDrivers((remoteDrivers) => {
+      if (remoteDrivers && remoteDrivers.length > 0) {
+        setDrivers(remoteDrivers);
+      }
+    });
+
+    return () => {
+      if (typeof unsubBookings === 'function') unsubBookings();
+      if (typeof unsubDrivers === 'function') unsubDrivers();
+    };
+  }, []);
 
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -817,6 +846,7 @@ export const AdminView: React.FC<Props> = ({ config, onUpdateConfig }) => {
             driverCoords={selectedMapBooking?.driverLoc ? [selectedMapBooking.driverLoc.lat, selectedMapBooking.driverLoc.lng] : [26.6247, 93.6035]}
             driverName={selectedMapBooking?.driverName || 'Driver'}
             driverVehicleIcon={config.vehicles.find(v => v.name === selectedMapBooking?.vehicle)?.icon || '🚗'}
+            fleetDrivers={drivers}
             showBlueDotLine={true}
             height="380px"
           />

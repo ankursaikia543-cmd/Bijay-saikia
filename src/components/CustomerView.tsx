@@ -2,7 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { MapPin, Navigation, Phone, User, CheckCircle, RefreshCw, History, Car, ArrowRight, ShieldCheck, Clock, ExternalLink } from 'lucide-react';
 import { AppConfig, Booking, CustomerUser, VehicleConfig } from '../types';
 import { ASSAM_LOCATIONS, calcDistanceKm, getBookings, saveBookings, getDrivers } from '../services/storage';
-import { initFirebaseBookingsSync, syncBookingToFirebase, listenToDriverLiveLocation, getCustomerTripsFromFirestore } from '../services/firebase';
+import {
+  initFirebaseBookingsSync, syncBookingToFirebase, listenToDriverLiveLocation,
+  getCustomerTripsFromFirestore, saveBookingToFirestore, cancelBookingInFirestore,
+  subscribeToAllBookings
+} from '../services/firebase';
 import { LiveRouteMap } from './LiveRouteMap';
 
 interface Props {
@@ -63,14 +67,30 @@ export const CustomerView: React.FC<Props> = ({ config, currentCustomer, onOpenC
   // Load existing active booking & connect Firebase realtime cloud sync
   useEffect(() => {
     loadBookingsState();
-    initFirebaseBookingsSync((remoteBookings) => {
+    const unsub = subscribeToAllBookings((remoteBookings) => {
       if (remoteBookings && remoteBookings.length > 0) {
+        const activeId = sessionStorage.getItem('et_active_booking_id') || localStorage.getItem('et_active_booking_id');
+        if (activeId) {
+          const match = remoteBookings.find(b => String(b.id) === String(activeId));
+          if (match) {
+            if (match.status === 'cancelled') {
+              setActiveBooking(null);
+              sessionStorage.removeItem('et_active_booking_id');
+              localStorage.removeItem('et_active_booking_id');
+            } else {
+              setActiveBooking(match);
+            }
+            return;
+          }
+        }
+
         if (phone) {
           const myBookings = remoteBookings.filter(b => b.phone === phone);
           setBookingHistory(myBookings);
           const active = myBookings.find(b => b.status === 'pending' || b.status === 'accepted');
           if (active) {
             setActiveBooking(active);
+            sessionStorage.setItem('et_active_booking_id', String(active.id));
             if (!fromCoords && active.fromLat) setFromCoords([active.fromLat, active.fromLng]);
             if (!toCoords && active.toLat) setToCoords([active.toLat, active.toLng]);
           }
@@ -79,7 +99,10 @@ export const CustomerView: React.FC<Props> = ({ config, currentCustomer, onOpenC
     });
 
     const interval = setInterval(loadBookingsState, 3000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (typeof unsub === 'function') unsub();
+    };
   }, [phone]);
 
   // Listen to Driver's real-time cloud location from Firebase
@@ -96,22 +119,30 @@ export const CustomerView: React.FC<Props> = ({ config, currentCustomer, onOpenC
 
   const loadBookingsState = () => {
     const all = getBookings();
+    const activeId = sessionStorage.getItem('et_active_booking_id') || localStorage.getItem('et_active_booking_id');
+
+    if (activeId) {
+      const myActive = all.find(b => String(b.id) === String(activeId) && b.status !== 'cancelled');
+      if (myActive) {
+        setActiveBooking(myActive);
+        if (!fromCoords && myActive.fromLat) setFromCoords([myActive.fromLat, myActive.fromLng]);
+        if (!toCoords && myActive.toLat) setToCoords([myActive.toLat, myActive.toLng]);
+        return;
+      }
+    }
+
     if (phone) {
       const myBookings = all.filter(b => b.phone === phone);
       setBookingHistory(myBookings);
       const active = myBookings.find(b => b.status === 'pending' || b.status === 'accepted');
       if (active) {
         setActiveBooking(active);
+        sessionStorage.setItem('et_active_booking_id', String(active.id));
         if (!fromCoords && active.fromLat) setFromCoords([active.fromLat, active.fromLng]);
         if (!toCoords && active.toLat) setToCoords([active.toLat, active.toLng]);
       } else if (activeBooking && activeBooking.status === 'accepted') {
         const completed = myBookings.find(b => b.id === activeBooking.id && b.status === 'completed');
         if (completed) setActiveBooking(completed);
-      }
-    } else {
-      const pendingOrAccepted = all.find(b => b.status === 'pending' || b.status === 'accepted');
-      if (pendingOrAccepted && (!activeBooking || activeBooking.id === pendingOrAccepted.id)) {
-        setActiveBooking(pendingOrAccepted);
       }
     }
   };
@@ -233,17 +264,21 @@ export const CustomerView: React.FC<Props> = ({ config, currentCustomer, onOpenC
     const otp = Math.floor(1000 + Math.random() * 9000);
     const newBooking: Booking = {
       id: Date.now(),
+      customerName: cleanName,
+      name: cleanName,
+      phone: cleanPhone,
+      from: fromLocation,
       fromName: fromLocation,
+      to: toLocation,
       toName: toLocation,
       fromLat: fromCoords[0],
       fromLng: fromCoords[1],
       toLat: toCoords[0],
       toLng: toCoords[1],
       km: distanceKm,
+      fare: `₹${calculatedPrice}`,
       price: `₹${calculatedPrice}`,
       vehicle: selectedVehicle,
-      phone: cleanPhone,
-      name: cleanName,
       otp: otp,
       status: 'pending',
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -252,7 +287,9 @@ export const CustomerView: React.FC<Props> = ({ config, currentCustomer, onOpenC
     const all = getBookings();
     all.unshift(newBooking);
     saveBookings(all);
-    syncBookingToFirebase(newBooking);
+    saveBookingToFirestore(newBooking);
+    sessionStorage.setItem('et_active_booking_id', String(newBooking.id));
+    localStorage.setItem('et_active_booking_id', String(newBooking.id));
     setActiveBooking(newBooking);
     setBookingHistory(prev => [newBooking, ...prev]);
 
@@ -262,17 +299,20 @@ export const CustomerView: React.FC<Props> = ({ config, currentCustomer, onOpenC
 
   // Cancel or Clear Booking
   const handleClearBooking = () => {
-    if (activeBooking && activeBooking.status === 'pending') {
+    if (activeBooking) {
+      cancelBookingInFirestore(activeBooking.id);
       const all = getBookings().filter(b => b.id !== activeBooking.id);
       saveBookings(all);
-      syncBookingToFirebase({ ...activeBooking, status: 'cancelled' });
     }
+    sessionStorage.removeItem('et_active_booking_id');
+    localStorage.removeItem('et_active_booking_id');
     setActiveBooking(null);
     setFromCoords(null);
     setToCoords(null);
     setFromLocation('');
     setToLocation('');
     setDistanceKm('0.00');
+    setCalculatedPrice(0);
   };
 
   // Find Driver details if accepted
