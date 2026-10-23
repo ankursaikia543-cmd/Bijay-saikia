@@ -3,131 +3,165 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>ASSAM EASY TRIP - Admin Master Control (Live Firestore)</title>
+  <title>যাত্ৰা (YATRA) - Admin Master Control (Real-Time Firestore)</title>
   <meta name="theme-color" content="#0f172a">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans pb-12">
-  <!-- Top Navigation -->
+  <!-- Top Navigation Header -->
   <header class="bg-slate-900 border-b border-yellow-400/40 p-4 sticky top-0 z-50 shadow-lg">
-    <div class="max-w-5xl mx-auto flex items-center justify-between">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-2xl bg-yellow-400 text-slate-950 font-black text-2xl flex items-center justify-center shadow-md">
           ⚙️
         </div>
         <div>
-          <h1 class="text-base font-black text-yellow-400 leading-tight">ASSAM EASY TRIP</h1>
+          <h1 class="text-base font-black text-yellow-400 leading-tight">যাত্ৰা (YATRA)</h1>
           <p class="text-xs text-slate-400 font-semibold">Admin Master Control • Live Firestore</p>
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <a href="/?portal=admin" class="px-3 py-1.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 text-xs font-black shadow-sm transition">
-          🖥️ Open React Admin
+        <a href="/?portal=admin" class="px-3.5 py-1.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 text-xs font-black shadow-sm transition">
+          🖥️ Open React Dashboard
         </a>
       </div>
     </div>
   </header>
 
-  <main class="max-w-5xl mx-auto w-full p-4 space-y-5">
-    <!-- Quick Stats Cards -->
+  <main class="max-w-6xl mx-auto w-full p-4 space-y-6">
+    <!-- Real-time Firestore Stats Cards -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
       <div class="bg-slate-900 p-3.5 rounded-2xl border border-slate-800">
         <span class="text-[11px] text-slate-400 font-bold block">Total Bookings</span>
-        <span id="statTotalBookings" class="text-xl font-black text-yellow-400">0</span>
+        <span id="statTotalBookings" class="text-2xl font-black text-yellow-400">0</span>
       </div>
       <div class="bg-slate-900 p-3.5 rounded-2xl border border-slate-800">
-        <span class="text-[11px] text-slate-400 font-bold block">Pending Rides</span>
-        <span id="statPendingBookings" class="text-xl font-black text-amber-400">0</span>
+        <span class="text-[11px] text-slate-400 font-bold block">New Rides</span>
+        <span id="statNewBookings" class="text-2xl font-black text-amber-400">0</span>
       </div>
       <div class="bg-slate-900 p-3.5 rounded-2xl border border-slate-800">
         <span class="text-[11px] text-slate-400 font-bold block">Accepted / Active</span>
-        <span id="statAcceptedBookings" class="text-xl font-black text-blue-400">0</span>
+        <span id="statAcceptedBookings" class="text-2xl font-black text-blue-400">0</span>
       </div>
       <div class="bg-slate-900 p-3.5 rounded-2xl border border-slate-800">
-        <span class="text-[11px] text-slate-400 font-bold block">Active Fleet Drivers</span>
-        <span id="statTotalDrivers" class="text-xl font-black text-emerald-400">0</span>
+        <span class="text-[11px] text-slate-400 font-bold block">Registered Drivers</span>
+        <span id="statTotalDrivers" class="text-2xl font-black text-emerald-400">0</span>
       </div>
     </div>
 
-    <!-- Live Fleet Map (onSnapshot on et_drivers collection) -->
-    <div class="bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-800 shadow-xl space-y-3">
-      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+    <!-- 1. Real-time Firestore Bookings Table (Explicit User Request) -->
+    <!-- "Table me pickup, drop, phone, status aur Google Map link dikhao. No fake data, only Firestore data." -->
+    <div class="bg-slate-900 rounded-3xl p-4 sm:p-6 border border-slate-800 shadow-xl space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
         <div>
           <h2 class="text-base font-black text-white flex items-center gap-2">
-            <span>🗺️ Admin Fleet Map</span>
+            <span>📋 Bookings Real-Time Table</span>
             <span class="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-bold">
-              Live onSnapshot: et_drivers
+              Live: bookings (orderBy createdAt desc)
             </span>
           </h2>
-          <p class="text-xs text-slate-400 mt-0.5">Showing ALL registered and active drivers with markers (looping through all docs)</p>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Table showing Pickup, Drop, Phone, Status and Google Map Navigation link. No fake data, only Firestore records.
+          </p>
         </div>
-        <div class="flex items-center gap-2">
-          <button id="recenterBtn" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700">
-            📍 Center Bokakhat
-          </button>
+        <div class="flex items-center gap-1.5 text-xs text-emerald-400 font-bold">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>Firestore Real-Time Stream Active</span>
         </div>
       </div>
 
-      <!-- Leaflet Map Container -->
-      <div id="adminFleetMap" class="w-full h-80 sm:h-96 rounded-2xl border border-slate-800 relative z-10"></div>
-
-      <!-- Drivers List Summary below Map -->
-      <div class="pt-2">
-        <h3 class="text-xs font-bold text-slate-400 mb-2">Fleet Drivers Status</h3>
-        <div id="driversListContainer" class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-h-40 overflow-y-auto pr-1 text-xs">
-          <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 text-slate-500 text-center col-span-3">
-            Loading drivers from Firestore...
-          </div>
-        </div>
+      <!-- Responsive HTML Table -->
+      <div class="overflow-x-auto rounded-2xl border border-slate-800">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-slate-950 text-slate-300 font-black text-[11px] uppercase tracking-wider border-b border-slate-800">
+            <tr>
+              <th class="py-3 px-3">Pickup</th>
+              <th class="py-3 px-3">Drop</th>
+              <th class="py-3 px-3">Phone</th>
+              <th class="py-3 px-3">Status</th>
+              <th class="py-3 px-3">Fare / Vehicle</th>
+              <th class="py-3 px-3">Google Map Link</th>
+            </tr>
+          </thead>
+          <tbody id="bookingsTableBody" class="divide-y divide-slate-800/60 bg-slate-900">
+            <tr>
+              <td colSpan="6" class="text-center py-10 text-slate-500 font-medium">
+                Connecting to Firestore <code>bookings</code> collection...
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
-    <!-- Real-time Firestore All Bookings List (onSnapshot on et_bookings) -->
-    <div class="bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-800 shadow-xl space-y-3">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+    <!-- 2. Real-time Firestore Drivers Table & Fleet Map (Explicit User Request) -->
+    <!-- "Aur drivers collection ko bhi: db.collection("drivers").orderBy("createdAt","desc").onSnapshot(snapshot => show data)" -->
+    <div class="bg-slate-900 rounded-3xl p-4 sm:p-6 border border-slate-800 shadow-xl space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
         <div>
           <h2 class="text-base font-black text-white flex items-center gap-2">
-            <span>📋 All Bookings (Real-Time Firestore)</span>
-            <span id="allBookingsBadge" class="bg-yellow-400 text-slate-950 text-xs px-2.5 py-0.5 rounded-full font-black">0</span>
+            <span>🚗 Registered Drivers Fleet</span>
+            <span class="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-bold">
+              Live: drivers (orderBy createdAt desc)
+            </span>
           </h2>
-          <p class="text-xs text-slate-400 mt-0.5">onSnapshot on <code>et_bookings</code> collection</p>
-        </div>
-        <div class="flex items-center gap-1.5 text-xs">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span class="text-slate-400 font-semibold">Auto-Syncing</span>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Real-time onSnapshot on <code>drivers</code> collection with interactive GPS map markers
+          </p>
         </div>
       </div>
 
-      <!-- Bookings Table / Cards -->
-      <div id="adminBookingsContainer" class="space-y-2.5 pt-1">
-        <div class="p-8 text-center text-slate-500 text-xs font-semibold">
-          Loading bookings from Firestore...
-        </div>
+      <!-- Leaflet Fleet Map Container -->
+      <div id="adminFleetMap" class="w-full h-80 sm:h-96 rounded-2xl border border-slate-800 relative z-10 shadow-md"></div>
+
+      <!-- Drivers Table -->
+      <div class="overflow-x-auto rounded-2xl border border-slate-800 mt-3">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-slate-950 text-slate-300 font-black text-[11px] uppercase tracking-wider border-b border-slate-800">
+            <tr>
+              <th class="py-3 px-3">Driver Name</th>
+              <th class="py-3 px-3">Phone</th>
+              <th class="py-3 px-3">Vehicle Type</th>
+              <th class="py-3 px-3">Vehicle No</th>
+              <th class="py-3 px-3">Location</th>
+              <th class="py-3 px-3">Duty Status</th>
+            </tr>
+          </thead>
+          <tbody id="driversTableBody" class="divide-y divide-slate-800/60 bg-slate-900">
+            <tr>
+              <td colSpan="6" class="text-center py-8 text-slate-500 font-medium">
+                Connecting to Firestore <code>drivers</code> collection...
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </main>
 
-  <!-- Firebase Modular SDK & Admin Map Logic -->
+  <!-- Firebase Modular SDK Script -->
   <script type="module">
     import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
     import {
+      initializeFirestore,
       getFirestore,
       collection,
-      onSnapshot,
-      doc,
-      setDoc
+      query,
+      orderBy,
+      onSnapshot
     } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
+    // Firebase configuration provided by user
     const firebaseConfig = {
-      apiKey: "AIzaSyAl3Y4UJ9XdI3xBXNF6PuIAypz3PjYv1ng",
-      authDomain: "easy-trip-d601a.firebaseapp.com",
-      databaseURL: "https://easy-trip-d601a-default-rtdb.firebaseio.com",
-      projectId: "easy-trip-d601a",
-      storageBucket: "easy-trip-d601a.appspot.com",
-      messagingSenderId: "123456789000",
-      appId: "1:123456789000:web:abcdef123456"
+      apiKey: "AIzaSyCmk5tezl0WeHgQn5diBkfQYF_KsqzwEGw",
+      authDomain: "assam-easy-trip.firebaseapp.com",
+      projectId: "assam-easy-trip",
+      storageBucket: "assam-easy-trip.firebasestorage.app",
+      messagingSenderId: "1061198552076",
+      appId: "1:1061198552076:web:41407c10c89baa754a6229",
+      measurementId: "G-E97XGL4BW9"
     };
 
     let app;
@@ -136,11 +170,17 @@
     } catch (e) {
       console.warn('Firebase init:', e);
     }
-    const db = getFirestore(app);
 
-    // 1. Initialize Leaflet Map
+    let db;
+    try {
+      db = initializeFirestore(app, { experimentalForceLongPolling: true });
+    } catch (e) {
+      db = getFirestore(app);
+    }
+
+    // Initialize Leaflet Map
     const map = L.map('adminFleetMap', {
-      center: [26.6247, 93.6035], // Bokakhat, Golaghat, Assam
+      center: [26.6247, 93.6035], // Bokakhat, Assam default
       zoom: 13,
       attributionControl: false
     });
@@ -151,36 +191,132 @@
 
     const driversLayer = L.layerGroup().addTo(map);
 
-    document.getElementById('recenterBtn').addEventListener('click', () => {
-      map.setView([26.6247, 93.6035], 13);
-    });
+    // 1. Real-time onSnapshot on bookings collection ordered by createdAt desc:
+    // db.collection("bookings").orderBy("createdAt","desc").onSnapshot(snapshot => show data)
+    function renderBookings(snapshot) {
+      const tbody = document.getElementById('bookingsTableBody');
+      const bookings = [];
+      let newCount = 0;
+      let acceptedCount = 0;
 
-    // 2. Real-time onSnapshot on et_drivers collection (Show ALL drivers with markers)
-    const driversColl = collection(db, 'et_drivers');
-    onSnapshot(driversColl, (snapshot) => {
+      snapshot.forEach((docSnap) => {
+        const b = { docId: docSnap.id, ...docSnap.data() };
+        bookings.push(b);
+        if (b.status === 'new' || b.status === 'pending') newCount++;
+        if (b.status === 'accepted') acceptedCount++;
+      });
+
+      document.getElementById('statTotalBookings').textContent = bookings.length;
+      document.getElementById('statNewBookings').textContent = newCount;
+      document.getElementById('statAcceptedBookings').textContent = acceptedCount;
+
+      if (bookings.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colSpan="6" class="text-center py-10 text-slate-500 font-medium">
+              Firestore <code>bookings</code> collection me koi records nahi hain.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = '';
+      bookings.forEach((b) => {
+        const pickup = b.pickup || b.from || b.fromName || 'Pickup';
+        const drop = b.drop || b.to || b.toName || 'Drop';
+        const phone = b.phone || 'N/A';
+        const status = b.status || 'new';
+        const fare = b.fare || b.price || '₹50';
+        const vehicle = b.vehicle || 'Auto';
+
+        const mapUrl = b.googleMapLink || (b.fromLat && b.toLat
+          ? `https://www.google.com/maps/dir/?api=1&origin=${b.fromLat},${b.fromLng}&destination=${b.toLat},${b.toLng}`
+          : `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(pickup)}&destination=${encodeURIComponent(drop)}`);
+
+        let statusBadge = 'bg-amber-500/20 text-amber-300 border border-amber-500/30';
+        if (status === 'accepted') statusBadge = 'bg-blue-500/20 text-blue-300 border border-blue-500/30';
+        if (status === 'completed') statusBadge = 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+        if (status === 'cancelled') statusBadge = 'bg-rose-500/20 text-rose-300 border border-rose-500/30';
+
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-800/40 transition';
+        tr.innerHTML = `
+          <td class="py-3 px-3 font-semibold text-slate-100 max-w-[180px] truncate" title="${pickup}">
+            <div class="flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+              <span>${pickup}</span>
+            </div>
+          </td>
+          <td class="py-3 px-3 font-semibold text-slate-200 max-w-[180px] truncate" title="${drop}">
+            <div class="flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-rose-400 shrink-0"></span>
+              <span>${drop}</span>
+            </div>
+          </td>
+          <td class="py-3 px-3 font-bold text-yellow-400">
+            <a href="tel:${phone}" class="hover:underline">📞 ${phone}</a>
+            <div class="text-[10px] text-slate-400 font-normal">${b.customerName || b.name || ''}</div>
+          </td>
+          <td class="py-3 px-3">
+            <span class="px-2.5 py-0.5 rounded-full font-black text-[10px] uppercase inline-block ${statusBadge}">
+              ${status}
+            </span>
+          </td>
+          <td class="py-3 px-3">
+            <span class="font-black text-yellow-400">${fare}</span>
+            <span class="text-[10px] text-slate-400 block">${vehicle}</span>
+          </td>
+          <td class="py-3 px-3">
+            <a href="${mapUrl}" target="_blank" rel="noreferrer" class="inline-flex items-center gap-1 px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 rounded-xl font-bold text-xs transition">
+              <span>🗺️ Google Map</span>
+              <span>↗</span>
+            </a>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    try {
+      const qBookings = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'));
+      onSnapshot(qBookings, (snapshot) => {
+        renderBookings(snapshot);
+      }, (err) => {
+        console.warn('onSnapshot bookings orderBy error, trying direct collection:', err);
+        onSnapshot(collection(db, 'bookings'), (snap) => {
+          renderBookings(snap);
+        });
+      });
+    } catch (e) {
+      console.warn('bookings setup error:', e);
+    }
+
+    // 2. Real-time onSnapshot on drivers collection ordered by createdAt desc:
+    // db.collection("drivers").orderBy("createdAt","desc").onSnapshot(snapshot => show data)
+    function renderDrivers(snapshot) {
+      const tbody = document.getElementById('driversTableBody');
       driversLayer.clearLayers();
-      const listContainer = document.getElementById('driversListContainer');
-      listContainer.innerHTML = '';
-
-      let driverCount = 0;
+      const drivers = [];
       const bounds = [];
 
       snapshot.forEach((docSnap) => {
-        driverCount++;
-        const d = docSnap.data();
+        const d = { docId: docSnap.id, ...docSnap.data() };
+        drivers.push(d);
+
         const dLat = Number(d.lat || 26.6247);
         const dLng = Number(d.lng || 93.6035);
-        const isDuty = d.isOnDuty !== false;
-        const vtype = d.vtype || 'Auto';
         const name = d.name || 'Driver';
+        const vtype = d.vtype || 'Auto';
         const phone = d.phone || docSnap.id;
         const vehno = d.vehno || 'AS-05-XXXX';
         const loc = d.loc || 'Bokakhat';
+        const isDuty = d.isOnDuty !== false;
 
         const iconSymbol = vtype === 'Bike' ? '🏍️' : vtype === 'Scooty' ? '🛵' : vtype === 'Auto' ? '🛺' : '🚗';
 
         const customIcon = L.divIcon({
-          className: 'admin-driver-pin',
+          className: 'admin-marker-pin',
           html: `
             <div style="display:flex; flex-direction:column; align-items:center; transform: translate(-50%, -50%); cursor:pointer;">
               <div style="background:${isDuty ? '#10b981' : '#64748b'}; color:#ffffff; border:2px solid #0f172a; border-radius:18px; padding:3px 8px; font-size:11px; font-weight:800; display:flex; align-items:center; gap:4px; box-shadow:0 3px 8px rgba(0,0,0,0.4); white-space:nowrap;">
@@ -206,23 +342,9 @@
         `);
         marker.addTo(driversLayer);
         bounds.push([dLat, dLng]);
-
-        // Add driver card in summary
-        const card = document.createElement('div');
-        card.className = 'p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between gap-2';
-        card.innerHTML = `
-          <div>
-            <div class="font-bold text-white">${name} <span class="text-slate-400 text-[10px]">(${vtype})</span></div>
-            <div class="text-[10px] text-slate-400">${vehno} • 📞 ${phone}</div>
-          </div>
-          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isDuty ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'}">
-            ${isDuty ? 'ON DUTY' : 'OFF'}
-          </span>
-        `;
-        listContainer.appendChild(card);
       });
 
-      document.getElementById('statTotalDrivers').textContent = driverCount;
+      document.getElementById('statTotalDrivers').textContent = drivers.length;
 
       if (bounds.length > 0) {
         if (bounds.length === 1) {
@@ -230,88 +352,68 @@
         } else {
           map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40], maxZoom: 15 });
         }
-      } else {
-        listContainer.innerHTML = '<div class="p-3 text-slate-500 text-center col-span-3">No drivers found in Firestore et_drivers.</div>';
       }
-    }, (error) => {
-      console.warn('onSnapshot et_drivers error:', error);
-    });
 
-    // 3. Real-time onSnapshot on et_bookings to show ALL bookings in Admin
-    const bookingsColl = collection(db, 'et_bookings');
-    onSnapshot(bookingsColl, (snapshot) => {
-      const container = document.getElementById('adminBookingsContainer');
-      const allBadge = document.getElementById('allBookingsBadge');
-
-      const bookings = [];
-      let pendingCount = 0;
-      let acceptedCount = 0;
-
-      snapshot.forEach((docSnap) => {
-        const b = { docId: docSnap.id, ...docSnap.data() };
-        bookings.push(b);
-        if (b.status === 'pending') pendingCount++;
-        if (b.status === 'accepted') acceptedCount++;
-      });
-
-      allBadge.textContent = bookings.length;
-      document.getElementById('statTotalBookings').textContent = bookings.length;
-      document.getElementById('statPendingBookings').textContent = pendingCount;
-      document.getElementById('statAcceptedBookings').textContent = acceptedCount;
-
-      if (bookings.length === 0) {
-        container.innerHTML = `
-          <div class="p-8 text-center text-slate-500 text-xs font-semibold">
-            Firestore collection et_bookings me koi booking nahi hai.
-          </div>
+      if (drivers.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colSpan="6" class="text-center py-8 text-slate-500 font-medium">
+              Firestore <code>drivers</code> collection me koi record nahi mila.
+            </td>
+          </tr>
         `;
         return;
       }
 
-      container.innerHTML = '';
-      bookings.sort((a, b) => Number(b.id || b.docId) - Number(a.id || a.docId));
+      tbody.innerHTML = '';
+      drivers.forEach((d) => {
+        const name = d.name || 'Driver';
+        const phone = d.phone || d.docId;
+        const vtype = d.vtype || 'Auto';
+        const vehno = d.vehno || 'AS-05-XXXX';
+        const loc = d.loc || 'Bokakhat';
+        const isDuty = d.isOnDuty !== false;
 
-      bookings.forEach((b) => {
-        const card = document.createElement('div');
-        card.className = 'bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-2';
-
-        const custName = b.customerName || b.name || 'Customer';
-        const phone = b.phone || 'N/A';
-        const from = b.from || b.fromName || 'Pickup';
-        const to = b.to || b.toName || 'Drop';
-        const fare = b.fare || b.price || '₹50';
-        const status = b.status || 'pending';
-        const vehicle = b.vehicle || 'Auto';
-        const driverName = b.driverName || b.driver || 'Unassigned';
-
-        let statusBadge = 'bg-amber-500/20 text-amber-400 border border-amber-500/30';
-        if (status === 'accepted') statusBadge = 'bg-blue-500/20 text-blue-400 border border-blue-500/30';
-        if (status === 'completed') statusBadge = 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
-        if (status === 'cancelled') statusBadge = 'bg-rose-500/20 text-rose-400 border border-rose-500/30';
-
-        card.innerHTML = `
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <div class="flex items-center gap-2">
-              <span class="font-bold text-sm text-white">${custName}</span>
-              <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md">${vehicle}</span>
-              <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${statusBadge}">${status}</span>
-            </div>
-            <div class="text-sm font-black text-yellow-400">${fare}</div>
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-slate-300">
-            <div><span class="text-emerald-400 font-bold">🟢 From:</span> ${from}</div>
-            <div><span class="text-rose-400 font-bold">🏁 To:</span> ${to}</div>
-            <div><span class="text-slate-400 font-bold">📞 Cust:</span> <a href="tel:${phone}" class="text-yellow-400 underline">${phone}</a></div>
-            <div><span class="text-slate-400 font-bold">🚗 Driver:</span> <span class="text-white">${driverName}</span></div>
-          </div>
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-800/40 transition';
+        tr.innerHTML = `
+          <td class="py-3 px-3 font-bold text-white">${name}</td>
+          <td class="py-3 px-3 font-semibold text-yellow-400">
+            <a href="tel:${phone}" class="hover:underline">📞 ${phone}</a>
+          </td>
+          <td class="py-3 px-3 text-slate-300">${vtype}</td>
+          <td class="py-3 px-3 font-mono text-slate-300">${vehno}</td>
+          <td class="py-3 px-3 text-slate-400">${loc}</td>
+          <td class="py-3 px-3">
+            <span class="px-2 py-0.5 rounded-full font-bold text-[10px] ${isDuty ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'}">
+              ${isDuty ? '🟢 ON DUTY' : '🔴 OFF DUTY'}
+            </span>
+          </td>
         `;
-
-        container.appendChild(card);
+        tbody.appendChild(tr);
       });
-    }, (error) => {
-      console.warn('onSnapshot et_bookings error:', error);
-    });
+    }
+
+    try {
+      const qDrivers = query(collection(db, 'drivers'), orderBy('createdAt', 'desc'));
+      onSnapshot(qDrivers, (snapshot) => {
+        if (snapshot.size > 0) {
+          renderDrivers(snapshot);
+        } else {
+          // If empty, check et_drivers fallback
+          onSnapshot(collection(db, 'et_drivers'), (snap2) => {
+            renderDrivers(snap2);
+          });
+        }
+      }, (err) => {
+        console.warn('onSnapshot drivers orderBy error, trying direct collection:', err);
+        onSnapshot(collection(db, 'drivers'), (snap) => {
+          renderDrivers(snap);
+        });
+      });
+    } catch (e) {
+      console.warn('drivers setup error:', e);
+    }
   </script>
 </body>
 </html>

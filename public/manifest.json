@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "ASSAM EASY TRIP",
-  "short_name": "EasyTrip",
-  "description": "ASSAM EASY TRIP - Regional ride booking app for Bokakhat, Golaghat, Kaziranga. Live map tracking & instant driver dispatch.",
+  "name": "যাত্ৰা (YATRA)",
+  "short_name": "যাত্ৰা",
+  "description": "যাত্ৰা (YATRA) - Regional ride booking app for Bokakhat, Golaghat, Kaziranga. Live GPS tracking & instant ride booking.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

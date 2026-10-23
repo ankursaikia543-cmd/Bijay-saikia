@@ -92,13 +92,13 @@ export default function App() {
             </div>
             <div>
               <div className="text-base sm:text-lg font-black tracking-tight flex items-center gap-1.5">
-                <span className="text-yellow-400">ASSAM</span>
-                <span className="text-white">EASY TRIP</span>
+                <span className="text-yellow-400 font-extrabold text-xl">যাত্ৰা</span>
+                <span className="text-white text-sm font-black">(YATRA)</span>
                 <span className="text-[9px] bg-yellow-400/20 text-yellow-300 font-extrabold px-1.5 py-0.2 rounded border border-yellow-400/30">
-                  v33.2
+                  Assam
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 -mt-0.5">Assam Easy Trip • Live Fast Rides</p>
+              <p className="text-[10px] text-slate-400 -mt-0.5">যাত্ৰা (YATRA) • Live Fast Rides</p>
             </div>
           </div>
 
@@ -214,7 +214,7 @@ export default function App() {
             <div className="space-y-2 sm:col-span-1">
               <div className="flex items-center justify-center sm:justify-start gap-2">
                 <span className="text-xl">🚖</span>
-                <span className="font-black text-white text-base tracking-wide">ASSAM EASY TRIP</span>
+                <span className="font-black text-white text-base tracking-wide">যাত্ৰা (YATRA)</span>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed">
                 Assam's reliable local ride-hailing app. Fast pickup, transparent rates, continuous driver ringtones, and live GPS map tracking across Golaghat district.
@@ -286,7 +286,7 @@ export default function App() {
           <div className="p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="space-y-0.5">
               <div className="font-extrabold text-white flex items-center gap-2">
-                <span>📱 Official Android APK (v33.2)</span>
+                <span>📱 Official Android APK (যাত্ৰা - YATRA)</span>
                 <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-500 font-bold px-2 py-0.2 rounded-full">
                   Auto-Update Enabled
                 </span>
@@ -317,7 +317,7 @@ export default function App() {
 
           {/* Copyright & Technical Subtext */}
           <div className="text-center text-[11px] text-slate-500 space-y-1">
-            <p>© {new Date().getFullYear()} ASSAM EASY TRIP. All Rights Reserved.</p>
+            <p>© {new Date().getFullYear()} যাত্ৰা (YATRA). All Rights Reserved.</p>
             <p>
               Head Office: Bokakhat, Golaghat, Assam pin 785612 • Helpline: 8638803320 / 7002754262
             </p>
@@ -335,7 +335,7 @@ export default function App() {
                   📱
                 </div>
                 <div>
-                  <h3 className="font-black text-white text-base">ASSAM EASY TRIP APK</h3>
+                  <h3 className="font-black text-white text-base">যাত্ৰা (YATRA) APK</h3>
                   <p className="text-xs text-yellow-400 font-semibold">Official Android Application v33.2</p>
                 </div>
               </div>
@@ -351,7 +351,7 @@ export default function App() {
               <div className="p-3.5 bg-yellow-50 rounded-2xl border border-yellow-300 space-y-1">
                 <span className="font-black text-slate-900 text-sm block">📋 APK Description:</span>
                 <p className="text-slate-800">
-                  <strong>ASSAM EASY TRIP</strong> is Assam's dedicated, real-time regional ride-hailing and fleet management mobile application. Designed specifically for towns and rural routes including <strong>Bokakhat, Golaghat, Kaziranga (Kohora/Bagori), Numaligarh, Dergaon, and Jorhat</strong>, it connects local commuters with verified auto, bike, scooty, and taxi drivers.
+                  <strong>যাত্ৰা (YATRA)</strong> is Assam's dedicated, real-time regional ride-hailing and fleet management mobile application. Designed specifically for towns and rural routes including <strong>Bokakhat, Golaghat, Kaziranga (Kohora/Bagori), Numaligarh, Dergaon, and Jorhat</strong>, it connects local commuters with verified auto, bike, scooty, and taxi drivers.
                 </p>
               </div>
 

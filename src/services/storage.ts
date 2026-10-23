@@ -1,4 +1,4 @@
-import { AppConfig, Booking, CustomerUser, Driver, DriverPayment, SoundConfig } from '../types';
+import { AppConfig, Booking, CustomerUser, Driver, DriverPayment, SoundConfig, ReferralData } from '../types';
 
 export const ASSAM_LOCATIONS: Record<string, [number, number]> = {
   "Bokakhat Town": [26.6247, 93.6035],
@@ -32,28 +32,34 @@ export const DEFAULT_CONFIG: AppConfig = {
   locations: Object.keys(ASSAM_LOCATIONS),
   upi: "admin@upi",
   qr: "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=upi://pay?pa=admin@upi",
-  qrNote: "Driver Daily 200 Monthly 4000",
-  apkVersion: 33.2,
+  qrNote: "Driver Daily ₹200 / Monthly ₹4000. Send payment screenshot to admin.",
+  apkVersion: 34.0,
   apkLink: "https://drive.usercontent.google.com/download?id=1QFJh28EgryuY2O4j0gJVv4AjN8dOegej&export=download&authuser=0",
+  referral: {
+    enabled: true,
+    referrerBonus: 50, // ₹50 to inviter
+    newUserDiscount: 25, // ₹25 instant off for friend
+    promoMessageAssamese: "Download 'যাত্ৰা (YATRA)' App & use my referral code to get ₹25 discount on your first ride! Assam's trusted ride service."
+  },
   design: {
-    logo: "🚖 ASSAM EASY TRIP",
+    logo: "🚖 যাত্ৰা (YATRA)",
     primary: "#ffcc00",
     dark: "#0f172a",
     bg: "#f1f5f9",
     card: "round",
     texts: {
-      customerHead: "📍 Book Your Ride - Assam",
-      driverHead: "🚗 Driver Portal",
-      bookBtn: "✅ Book + OTP",
+      customerHead: "📍 যাত্ৰা (YATRA) - Quick Booking",
+      driverHead: "🚗 যাত্ৰা (YATRA) - Driver Portal",
+      bookBtn: "✅ Book Ride + OTP",
       currentBtn: "📍 My Current Location"
     }
   },
   adminDetails: {
-    name: "ASSAM EASY TRIP Head Office",
+    name: "যাত্ৰা (YATRA) Head Office",
     phone: "8638803320, 7002754262",
-    email: "support@assameasytrip.com",
+    email: "support@yatra-assam.in",
     address: "Bokakhat, Golaghat, Assam pin 785612",
-    support: "24/7 Available (Emergency & Assistance)",
+    support: "24/7 Available (Helpline & Ride Support)",
     whatsapp: "8638803320"
   },
   adminCred: {
@@ -271,4 +277,137 @@ export function calcBearing(lat1: number, lon1: number, lat2: number, lon2: numb
     Math.sin(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.cos((lon2 - lon1) * (Math.PI / 180));
   const bearing = (Math.atan2(y, x) * 180) / Math.PI;
   return (bearing + 360) % 360;
+}
+
+// =========================================================================
+// REFERRAL & BONUS SYSTEM (ৰেফাৰেল আৰু ইনাম ব্যৱস্থা)
+// =========================================================================
+
+export function generateReferralCode(phone: string): string {
+  const clean = phone.replace(/[^\d]/g, '');
+  const suffix = clean.length >= 4 ? clean.slice(-4) : Math.floor(1000 + Math.random() * 9000).toString();
+  return `YATRA-${suffix}`;
+}
+
+export function getReferralData(phone: string, name?: string): ReferralData {
+  const cleanPhone = phone.trim();
+  const code = generateReferralCode(cleanPhone);
+  try {
+    const raw = localStorage.getItem(`yatra_ref_${cleanPhone}`);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+
+  const defaultRef: ReferralData = {
+    code,
+    ownerPhone: cleanPhone,
+    ownerName: name || 'Customer',
+    totalInvited: 0,
+    walletBalance: 0,
+    createdAt: new Date().toISOString(),
+    history: []
+  };
+  saveReferralData(defaultRef);
+  return defaultRef;
+}
+
+export function saveReferralData(data: ReferralData) {
+  try {
+    localStorage.setItem(`yatra_ref_${data.ownerPhone}`, JSON.stringify(data));
+    // Index by code
+    localStorage.setItem(`yatra_ref_code_${data.code.toUpperCase()}`, JSON.stringify(data));
+    
+    // Also update all referrals list
+    const all = getAllReferrals();
+    const idx = all.findIndex(r => r.code === data.code);
+    if (idx >= 0) {
+      all[idx] = data;
+    } else {
+      all.push(data);
+    }
+    localStorage.setItem('yatra_all_referrals', JSON.stringify(all));
+  } catch (e) {}
+}
+
+export function getAllReferrals(): ReferralData[] {
+  try {
+    const raw = localStorage.getItem('yatra_all_referrals');
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return [];
+}
+
+export function applyReferralCode(
+  referralCode: string,
+  userPhone: string,
+  userName?: string
+): { success: boolean; discount: number; message: string; referrerCode?: string } {
+  const cleanCode = referralCode.trim().toUpperCase();
+  if (!cleanCode) {
+    return { success: false, discount: 0, message: 'ৰেফাৰেল ক\'ড খালি থাকিব নোৱাৰে।' };
+  }
+
+  // Check if user is using their own code
+  const myCode = generateReferralCode(userPhone);
+  if (cleanCode === myCode.toUpperCase()) {
+    return { success: false, discount: 0, message: 'আপুনি নিজৰ ৰেফাৰেল ক\'ড নিজে ব্যৱহাৰ কৰিব নোৱাৰে।' };
+  }
+
+  // Check if this phone has already claimed a welcome referral discount
+  const claimedKey = `yatra_ref_claimed_${userPhone.trim()}`;
+  if (localStorage.getItem(claimedKey)) {
+    return { success: false, discount: 0, message: 'আপুনি ইতিমধ্যে প্ৰথম ৰাইডৰ ৰেফাৰেল বোনাচ লাভ কৰিছে।' };
+  }
+
+  // Look up owner of referral code
+  let refOwner: ReferralData | null = null;
+  try {
+    const raw = localStorage.getItem(`yatra_ref_code_${cleanCode}`);
+    if (raw) refOwner = JSON.parse(raw);
+  } catch (e) {}
+
+  // If not found in code index, scan all referrals
+  if (!refOwner) {
+    const all = getAllReferrals();
+    refOwner = all.find(r => r.code.toUpperCase() === cleanCode) || null;
+  }
+
+  // Award ₹25 instant discount to friend and ₹50 to inviter
+  const discount = 25;
+  const referrerBonus = 50;
+
+  if (refOwner) {
+    refOwner.totalInvited = (refOwner.totalInvited || 0) + 1;
+    refOwner.walletBalance = (refOwner.walletBalance || 0) + referrerBonus;
+    refOwner.history = refOwner.history || [];
+    refOwner.history.push({
+      friendPhone: userPhone.trim(),
+      friendName: userName || 'New Friend',
+      date: new Date().toLocaleDateString(),
+      bonusEarned: referrerBonus,
+      status: 'completed_ride'
+    });
+    saveReferralData(refOwner);
+  }
+
+  // Mark user as claimed
+  localStorage.setItem(claimedKey, cleanCode);
+
+  return {
+    success: true,
+    discount,
+    referrerCode: cleanCode,
+    message: `🎉 অভিনন্দন! ৰেফাৰেল ক'ড প্ৰয়োগ হ'ল। আপুনি ₹${discount} ৰেহাই লাভ কৰিছে!`
+  };
+}
+
+export function deductWalletBalance(phone: string, amount: number): boolean {
+  try {
+    const refData = getReferralData(phone);
+    if (refData.walletBalance >= amount) {
+      refData.walletBalance -= amount;
+      saveReferralData(refData);
+      return true;
+    }
+  } catch (e) {}
+  return false;
 }

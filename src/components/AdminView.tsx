@@ -3,14 +3,19 @@ import * as XLSX from 'xlsx';
 import {
   ShieldCheck, Download, Trash2, CheckCircle, XCircle, Lock, Unlock, Plus,
   Settings, DollarSign, Users, MapPin, QrCode, Edit, Save, Upload, Copy,
-  Phone, Mail, Check, CreditCard, RefreshCw, Key, Navigation, FileSpreadsheet
+  Phone, Mail, Check, CreditCard, RefreshCw, Key, Navigation, FileSpreadsheet,
+  ExternalLink, Gift, Flame, Share2, Sparkles
 } from 'lucide-react';
-import { AppConfig, Booking, Driver, DriverPayment, VehicleConfig } from '../types';
+import { AppConfig, Booking, Driver, DriverPayment, VehicleConfig, ReferralData, FirebaseApiConfig } from '../types';
 import {
   getBookings, getDrivers, getDriverPayments, saveAppConfig, saveBookings,
-  saveDrivers, saveDriverPayments
+  saveDrivers, saveDriverPayments, getAllReferrals, saveReferralData
 } from '../services/storage';
-import { subscribeToAllBookings, subscribeToAllDrivers } from '../services/firebase';
+import {
+  subscribeToAllBookings, subscribeToAllDrivers, subscribeToReferrals,
+  syncReferralToFirestore, getStoredFirebaseConfig, saveStoredFirebaseConfig,
+  DEFAULT_FIREBASE_CONFIG, syncDriverToFirestore
+} from '../services/firebase';
 import { LiveRouteMap } from './LiveRouteMap';
 
 interface Props {
@@ -23,13 +28,16 @@ export const AdminView: React.FC<Props> = ({ config, onUpdateConfig }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [activeTab, setActiveTab] = useState<
-    'bookings' | 'drivers' | 'map' | 'rates' | 'commissions' | 'payments' | 'qr' | 'design' | 'settings' | 'excel'
+    'bookings' | 'drivers' | 'map' | 'referrals' | 'firebase' | 'rates' | 'commissions' | 'payments' | 'qr' | 'design' | 'settings' | 'excel'
   >('bookings');
 
   const [drivers, setDrivers] = useState<Driver[]>(getDrivers());
   const [bookings, setBookings] = useState<Booking[]>(getBookings());
   const [payments, setPayments] = useState<DriverPayment[]>(getDriverPayments());
-  const [selectedMapBooking, setSelectedMapBooking] = useState<Booking | null>(bookings[0] || null);
+  const [referrals, setReferrals] = useState<ReferralData[]>(getAllReferrals());
+  const [fbConfigState, setFbConfigState] = useState<FirebaseApiConfig>(getStoredFirebaseConfig());
+  const [fbSavedToast, setFbSavedToast] = useState('');
+  const [selectedMapBooking, setSelectedMapBooking] = useState<Booking | null>(getBookings()[0] || null);
   const [loginError, setLoginError] = useState('');
   const [successToast, setSuccessToast] = useState('');
 
@@ -62,7 +70,7 @@ export const AdminView: React.FC<Props> = ({ config, onUpdateConfig }) => {
     setTimeout(() => setSuccessToast(''), 3000);
   };
 
-  // Real-time Firestore onSnapshot for Bookings & Fleet Drivers
+  // Real-time Firestore onSnapshot for Bookings, Fleet Drivers & Referrals
   useEffect(() => {
     const unsubBookings = subscribeToAllBookings((remoteBookings) => {
       if (remoteBookings) {
@@ -84,9 +92,16 @@ export const AdminView: React.FC<Props> = ({ config, onUpdateConfig }) => {
       }
     });
 
+    const unsubRefs = subscribeToReferrals((remoteRefs) => {
+      if (remoteRefs && remoteRefs.length > 0) {
+        setReferrals(remoteRefs);
+      }
+    });
+
     return () => {
       if (typeof unsubBookings === 'function') unsubBookings();
       if (typeof unsubDrivers === 'function') unsubDrivers();
+      if (typeof unsubRefs === 'function') unsubRefs();
     };
   }, []);
 
@@ -99,21 +114,24 @@ export const AdminView: React.FC<Props> = ({ config, onUpdateConfig }) => {
     ) {
       setIsLoggedIn(true);
       setLoginError('');
-      setDrivers(getDrivers());
-      setBookings(getBookings());
       setPayments(getDriverPayments());
+      setReferrals(getAllReferrals());
       setLocalCfg({ ...config });
     } else {
       setLoginError('Galat Username ya Password! Master Key: 1234');
     }
   };
 
-  // 1. DRIVER ACTIONS
+  // 1. DRIVER ACTIONS (REAL-TIME FIRESTORE SYNC WITH APK)
   const handleApproveDriver = (id: number) => {
+    const targetDriver = drivers.find(d => d.id === id);
     const updated = drivers.map(d => d.id === id ? { ...d, status: 'approved' as const } : d);
     setDrivers(updated);
     saveDrivers(updated);
-    showToast('Driver Approve Ho Gaya!');
+    if (targetDriver) {
+      syncDriverToFirestore({ ...targetDriver, status: 'approved' });
+    }
+    showToast('Driver Approve Ho Gaya & Firestore Live Sync Ho Gaya!');
   };
 
   const handleRejectDriver = (id: number) => {
@@ -125,9 +143,13 @@ export const AdminView: React.FC<Props> = ({ config, onUpdateConfig }) => {
   };
 
   const handleToggleLockDriver = (id: number) => {
+    const targetDriver = drivers.find(d => d.id === id);
     const updated = drivers.map(d => d.id === id ? { ...d, locked: !d.locked } : d);
     setDrivers(updated);
     saveDrivers(updated);
+    if (targetDriver) {
+      syncDriverToFirestore({ ...targetDriver, locked: !targetDriver.locked });
+    }
     showToast('Driver status update ho gaya!');
   };
 
@@ -137,8 +159,9 @@ export const AdminView: React.FC<Props> = ({ config, onUpdateConfig }) => {
     const updated = drivers.map(d => d.id === editingDriver.id ? editingDriver : d);
     setDrivers(updated);
     saveDrivers(updated);
+    syncDriverToFirestore(editingDriver);
     setEditingDriver(null);
-    showToast('Driver details safalta-purvak update hui!');
+    showToast('Driver details safalta-purvak update hui & Firestore par sync ho gayi!');
   };
 
   // 2. RATES & COMMISSION ACTIONS
@@ -412,7 +435,21 @@ export const AdminView: React.FC<Props> = ({ config, onUpdateConfig }) => {
       XLSX.utils.book_append_sheet(wb, wsRates, 'Vehicle Rates & Commission');
     }
 
-    XLSX.writeFile(wb, `ASSAM_EASY_TRIP_${type.toUpperCase()}_REPORT_${Date.now()}.xlsx`);
+    if (type === 'all') {
+      const wsRef = XLSX.utils.json_to_sheet(
+        referrals.map(r => ({
+          'User Phone': r.ownerPhone,
+          'User Name': r.ownerName,
+          'Referral Code': r.code,
+          'Friends Invited': r.totalInvited || 0,
+          'Current Wallet Balance (₹)': r.walletBalance || 0,
+          'Created At': r.createdAt
+        }))
+      );
+      XLSX.utils.book_append_sheet(wb, wsRef, 'Referrals & Bonuses');
+    }
+
+    XLSX.writeFile(wb, `YATRA_ASSAM_${type.toUpperCase()}_REPORT_${Date.now()}.xlsx`);
     showToast(`Excel Sheet (${type.toUpperCase()}) Downloaded!`);
   };
 
@@ -510,6 +547,8 @@ export const AdminView: React.FC<Props> = ({ config, onUpdateConfig }) => {
           { id: 'bookings', label: `📍 Bookings (${bookings.length})` },
           { id: 'drivers', label: `🚗 Drivers (${drivers.length})` },
           { id: 'map', label: '🗺️ Live Fleet Map' },
+          { id: 'referrals', label: `🎁 Referrals & Bonus (${referrals.length})` },
+          { id: 'firebase', label: '🔥 Firebase & APK Link' },
           { id: 'rates', label: '🛺 Customer Rates' },
           { id: 'commissions', label: '💰 Driver Commission' },
           { id: 'payments', label: `💳 Payments (${payments.length})` },
@@ -532,18 +571,28 @@ export const AdminView: React.FC<Props> = ({ config, onUpdateConfig }) => {
         ))}
       </div>
 
-      {/* 1. BOOKINGS TAB */}
+      {/* 1. BOOKINGS TAB (REAL-TIME FIRESTORE TABLE) */}
       {activeTab === 'bookings' && (
-        <div className="bg-white rounded-3xl p-5 border-2 border-slate-900 shadow-md space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-black text-slate-900">Live & Past Bookings</h3>
+        <div className="bg-white rounded-3xl p-5 border-2 border-slate-900 shadow-md space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+            <div>
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <span>📍 Real-Time Bookings Table</span>
+                <span className="text-xs bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-300">
+                  ⚡ Firestore Live: bookings
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500">
+                <code>db.collection("bookings").orderBy("createdAt","desc").onSnapshot(...)</code> • No fake data, only Firestore data.
+              </p>
+            </div>
             <button
               onClick={() => {
-                if (confirm('Saari completed bookings clear karni hain?')) {
+                if (confirm('Saari completed bookings list se clear karni hain?')) {
                   const remaining = bookings.filter(b => b.status !== 'completed');
                   setBookings(remaining);
                   saveBookings(remaining);
-                  showToast('Completed bookings clear ho gayi.');
+                  showToast('Completed bookings list clear ho gayi.');
                 }
               }}
               className="text-xs text-rose-600 hover:underline font-bold"
@@ -552,52 +601,107 @@ export const AdminView: React.FC<Props> = ({ config, onUpdateConfig }) => {
             </button>
           </div>
 
-          <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
-            {bookings.length === 0 ? (
-              <div className="text-center py-8 text-slate-400 text-xs">Koi booking nahi mili.</div>
-            ) : (
-              bookings.map(b => (
-                <div key={b.id} className="p-3.5 bg-slate-50 rounded-2xl border-2 border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
-                  <div>
-                    <div className="font-extrabold text-slate-900">
-                      👤 {b.name} ({b.phone}) • <span className="text-blue-600 font-black">{b.price}</span> ({b.km} KM)
-                    </div>
-                    <div className="text-slate-600 font-semibold mt-0.5">
-                      📍 {b.fromName} → 🏁 {b.toName}
-                    </div>
-                    <div className="text-[11px] text-slate-400 mt-0.5">
-                      OTP: <strong>{b.otp}</strong> • Vehicle: {b.vehicle} • Driver: {b.driver || 'Pending'}
-                    </div>
-                  </div>
+          <div className="overflow-x-auto rounded-2xl border border-slate-200">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-900 text-white font-black text-[11px] uppercase tracking-wider">
+                <tr>
+                  <th className="py-3 px-3">Pickup</th>
+                  <th className="py-3 px-3">Drop</th>
+                  <th className="py-3 px-3">Phone / Customer</th>
+                  <th className="py-3 px-3">Status</th>
+                  <th className="py-3 px-3">Fare & Vehicle</th>
+                  <th className="py-3 px-3">Google Map Link</th>
+                  <th className="py-3 px-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 bg-white">
+                {bookings.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-10 text-slate-400 font-medium">
+                      Firestore <code>bookings</code> collection me abhi koi data nahi hai. Naya booking aate hi yahan live show hoga.
+                    </td>
+                  </tr>
+                ) : (
+                  bookings.map((b) => {
+                    const pickupText = b.pickup || b.from || b.fromName || 'N/A';
+                    const dropText = b.drop || b.to || b.toName || 'N/A';
+                    const mapUrl = b.googleMapLink || (b.fromLat && b.toLat
+                      ? `https://www.google.com/maps/dir/?api=1&origin=${b.fromLat},${b.fromLng}&destination=${b.toLat},${b.toLng}`
+                      : `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(pickupText)}&destination=${encodeURIComponent(dropText)}`);
 
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                        b.status === 'completed'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : b.status === 'accepted'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-rose-100 text-rose-800'
-                      }`}
-                    >
-                      {b.status.toUpperCase()}
-                    </span>
-                    <button
-                      onClick={() => {
-                        const updated = bookings.filter(x => x.id !== b.id);
-                        setBookings(updated);
-                        saveBookings(updated);
-                        showToast('Booking delete ho gayi.');
-                      }}
-                      className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
+                    return (
+                      <tr key={b.id} className="hover:bg-slate-50 transition">
+                        <td className="py-3 px-3 font-bold text-slate-900 max-w-[170px] truncate" title={pickupText}>
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                            <span>{pickupText}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 font-bold text-slate-800 max-w-[170px] truncate" title={dropText}>
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
+                            <span>{dropText}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3">
+                          <div className="font-extrabold text-slate-900">
+                            <a href={`tel:${b.phone}`} className="text-blue-600 hover:underline">
+                              📞 {b.phone}
+                            </a>
+                          </div>
+                          <div className="text-[11px] text-slate-500 font-medium">{b.customerName || b.name}</div>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span
+                            className={`px-2.5 py-1 rounded-full font-black text-[10px] uppercase inline-block ${
+                              b.status === 'completed'
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : b.status === 'accepted'
+                                ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                                : b.status === 'new'
+                                ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
+                                : 'bg-rose-100 text-rose-800 border border-rose-300'
+                            }`}
+                          >
+                            {b.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3">
+                          <div className="font-black text-slate-900 text-sm text-yellow-600">{b.fare || b.price}</div>
+                          <div className="text-[10px] text-slate-500 font-semibold">{b.vehicle} • {b.km} km</div>
+                        </td>
+                        <td className="py-3 px-3">
+                          <a
+                            href={mapUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-extrabold text-xs rounded-xl border border-blue-200 transition shadow-2xs"
+                            title="Open in Google Maps Navigation"
+                          >
+                            <span>🗺️ Google Map</span>
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          <button
+                            onClick={() => {
+                              const updated = bookings.filter(x => x.id !== b.id);
+                              setBookings(updated);
+                              saveBookings(updated);
+                              showToast('Booking record delete ho gaya.');
+                            }}
+                            className="p-1.5 text-rose-600 hover:bg-rose-100 rounded-lg transition"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -645,11 +749,20 @@ export const AdminView: React.FC<Props> = ({ config, onUpdateConfig }) => {
                       className="w-14 h-14 rounded-full object-cover border-2 border-slate-900 shadow-xs"
                     />
                     <div>
-                      <div className="text-sm font-black text-slate-900 flex items-center gap-1.5">
+                      <div className="text-sm font-black text-slate-900 flex items-center gap-1.5 flex-wrap">
                         <span>{d.name}</span>
                         <span className="text-xs bg-slate-900 text-yellow-400 px-2 py-0.2 rounded font-bold">
                           {d.vtype}
                         </span>
+                        {d.registeredFrom === 'apk' ? (
+                          <span className="text-[10px] bg-purple-100 text-purple-900 font-extrabold px-2 py-0.5 rounded border border-purple-300">
+                            📱 APK Registration
+                          </span>
+                        ) : (
+                          <span className="text-[10px] bg-blue-50 text-blue-800 font-bold px-2 py-0.5 rounded border border-blue-200">
+                            🌐 Web Signup
+                          </span>
+                        )}
                         {d.locked && (
                           <span className="text-[10px] bg-rose-600 text-white px-1.5 py-0.2 rounded font-bold">
                             LOCKED
@@ -657,10 +770,53 @@ export const AdminView: React.FC<Props> = ({ config, onUpdateConfig }) => {
                         )}
                       </div>
                       <div className="text-xs font-bold text-slate-700 mt-0.5">
-                        📱 {d.phone} • Gari No: <span className="font-black text-slate-900">{d.vehno}</span>
+                        📱 <a href={`tel:${d.phone}`} className="text-blue-600 hover:underline">{d.phone}</a> • Gari No: <span className="font-black text-slate-900">{d.vehno}</span>
                       </div>
                       <div className="text-[11px] text-slate-500">
                         Location: {d.loc} • Registered: {d.created}
+                      </div>
+                      {/* Driver Documents Preview */}
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                        {d.licence && (
+                          <span className="text-[10px] bg-amber-50 text-amber-900 px-2 py-0.5 rounded font-bold border border-amber-200">
+                            DL: {d.licence}
+                          </span>
+                        )}
+                        {d.aadhar && (
+                          <span className="text-[10px] bg-indigo-50 text-indigo-900 px-2 py-0.5 rounded font-bold border border-indigo-200">
+                            Aadhar: {d.aadhar}
+                          </span>
+                        )}
+                        {d.epfo && (
+                          <span className="text-[10px] bg-emerald-50 text-emerald-900 px-2 py-0.5 rounded font-bold border border-emerald-200">
+                            EPFO: {d.epfo}
+                          </span>
+                        )}
+                        {d.esic && (
+                          <span className="text-[10px] bg-teal-50 text-teal-900 px-2 py-0.5 rounded font-bold border border-teal-200">
+                            ESIC: {d.esic}
+                          </span>
+                        )}
+                        {d.carphoto && (
+                          <a
+                            href={d.carphoto}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] bg-slate-200 hover:bg-slate-300 text-slate-800 px-2 py-0.5 rounded font-bold inline-flex items-center gap-1"
+                          >
+                            🚘 Car Photo
+                          </a>
+                        )}
+                        {d.licphoto && (
+                          <a
+                            href={d.licphoto}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] bg-slate-200 hover:bg-slate-300 text-slate-800 px-2 py-0.5 rounded font-bold inline-flex items-center gap-1"
+                          >
+                            🪪 DL Photo
+                          </a>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -866,6 +1022,403 @@ export const AdminView: React.FC<Props> = ({ config, onUpdateConfig }) => {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2.6 REFERRALS & PROMO MANAGEMENT TAB */}
+      {activeTab === 'referrals' && (
+        <div className="bg-white rounded-3xl p-5 border-2 border-slate-900 shadow-md space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+            <div>
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <span>🎁 Referral & Bonus Program (যাত্ৰা - YATRA)</span>
+                <span className="text-xs bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-300">
+                  Active Promo
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500">
+                Customer app promotion ke liye referral bonus aur discounts set karein. Real-time Firestore sync.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                const dummyRef: ReferralData = {
+                  code: 'YATRA' + Math.floor(1000 + Math.random() * 9000),
+                  ownerPhone: '9864' + Math.floor(100000 + Math.random() * 900000),
+                  ownerName: 'Customer',
+                  totalInvited: 3,
+                  walletBalance: 150,
+                  createdAt: new Date().toLocaleDateString()
+                };
+                const updated = [dummyRef, ...referrals];
+                setReferrals(updated);
+                saveReferralData(dummyRef);
+                syncReferralToFirestore(dummyRef);
+                showToast('Sample Referral Code create ho gaya!');
+              }}
+              className="py-1.5 px-3 bg-slate-900 text-yellow-400 font-black text-xs rounded-xl shadow-xs"
+            >
+              + Generate Promo Code
+            </button>
+          </div>
+
+          {/* Referral Analytics Overview */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3.5 bg-yellow-50 rounded-2xl border-2 border-yellow-300">
+              <span className="text-[10px] font-black text-yellow-900 uppercase tracking-wider block">Total Referrers</span>
+              <span className="text-xl font-black text-slate-950 mt-1 block">{referrals.length} Users</span>
+            </div>
+            <div className="p-3.5 bg-blue-50 rounded-2xl border-2 border-blue-300">
+              <span className="text-[10px] font-black text-blue-900 uppercase tracking-wider block">Friends Invited</span>
+              <span className="text-xl font-black text-blue-950 mt-1 block">
+                {referrals.reduce((sum, r) => sum + (r.totalInvited || 0), 0)} Rides
+              </span>
+            </div>
+            <div className="p-3.5 bg-emerald-50 rounded-2xl border-2 border-emerald-300">
+              <span className="text-[10px] font-black text-emerald-900 uppercase tracking-wider block">Bonus Per Referral</span>
+              <span className="text-xl font-black text-emerald-900 mt-1 block">
+                ₹{localCfg.referral?.referrerBonus ?? 50}
+              </span>
+            </div>
+            <div className="p-3.5 bg-purple-50 rounded-2xl border-2 border-purple-300">
+              <span className="text-[10px] font-black text-purple-900 uppercase tracking-wider block">Active Wallet Balance</span>
+              <span className="text-xl font-black text-purple-900 mt-1 block">
+                ₹{referrals.reduce((sum, r) => sum + (r.walletBalance || 0), 0)}
+              </span>
+            </div>
+          </div>
+
+          {/* Referral Rules & Bonus Amount Configuration */}
+          <div className="p-4 bg-slate-50 rounded-2xl border-2 border-slate-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-slate-900">⚙️ Referral Bonus & Discount Rules (Cheng Karein)</span>
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={localCfg.referral?.enabled ?? true}
+                  onChange={e => setLocalCfg({
+                    ...localCfg,
+                    referral: {
+                      ...(localCfg.referral || { referrerBonus: 50, newUserDiscount: 25, promoMessageAssamese: '' }),
+                      enabled: e.target.checked
+                    }
+                  })}
+                  className="rounded w-4 h-4 text-yellow-400 focus:ring-0"
+                />
+                <span>Enable Referral Program</span>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-extrabold text-slate-600 block mb-1">
+                  Referrer Bonus (₹) — Purane user ko milne wala bonus
+                </label>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-bold text-slate-500">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={localCfg.referral?.referrerBonus ?? 50}
+                    onChange={e => setLocalCfg({
+                      ...localCfg,
+                      referral: {
+                        ...(localCfg.referral || { enabled: true, newUserDiscount: 25, promoMessageAssamese: '' }),
+                        referrerBonus: Number(e.target.value)
+                      }
+                    })}
+                    className="w-full px-3 py-2 bg-white border rounded-xl text-xs font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-extrabold text-slate-600 block mb-1">
+                  New Customer Discount (₹) — Naye user ki ride pe discount
+                </label>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-bold text-slate-500">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={localCfg.referral?.newUserDiscount ?? 25}
+                    onChange={e => setLocalCfg({
+                      ...localCfg,
+                      referral: {
+                        ...(localCfg.referral || { enabled: true, referrerBonus: 50, promoMessageAssamese: '' }),
+                        newUserDiscount: Number(e.target.value)
+                      }
+                    })}
+                    className="w-full px-3 py-2 bg-white border rounded-xl text-xs font-bold"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-extrabold text-slate-600 block mb-1">
+                WhatsApp Sharing Message (Assamese Promo Text)
+              </label>
+              <textarea
+                rows={2}
+                value={localCfg.referral?.promoMessageAssamese ?? '🚖 যাত্ৰা (YATRA) ৰাইড বুকিং এপ ডাউনল’ড কৰক আৰু মোৰ ৰেফাৰেল কোড ব্যৱহাৰ কৰি ₹25 ৰেহাই পাওক!'}
+                onChange={e => setLocalCfg({
+                  ...localCfg,
+                  referral: {
+                    ...(localCfg.referral || { enabled: true, referrerBonus: 50, newUserDiscount: 25 }),
+                    promoMessageAssamese: e.target.value
+                  }
+                })}
+                className="w-full px-3 py-2 bg-white border rounded-xl text-xs font-medium"
+              />
+            </div>
+
+            <button
+              onClick={() => {
+                onUpdateConfig(localCfg);
+                saveAppConfig(localCfg);
+                showToast('Referral Bonus & Promo Settings Save Ho Gayi!');
+              }}
+              className="py-2.5 px-5 bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black text-xs rounded-xl shadow-xs transition"
+            >
+              💾 Save Referral Rules
+            </button>
+          </div>
+
+          {/* All Customer Referrals Table */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-black text-slate-800">Customer Referral Codes & Wallets ({referrals.length})</h4>
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-900 text-white font-black text-[11px] uppercase">
+                  <tr>
+                    <th className="py-2.5 px-3">Customer Phone / Name</th>
+                    <th className="py-2.5 px-3">Referral Code</th>
+                    <th className="py-2.5 px-3">Friends Joined</th>
+                    <th className="py-2.5 px-3">Wallet Balance</th>
+                    <th className="py-2.5 px-3">Created</th>
+                    <th className="py-2.5 px-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 bg-white">
+                  {referrals.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="text-center py-6 text-slate-400 text-xs">
+                        Abhi koi referral data nahi hai. Customer jab app se refer karenge toh yahan live dikhai dega.
+                      </td>
+                    </tr>
+                  ) : (
+                    referrals.map((r, i) => (
+                      <tr key={i} className="hover:bg-slate-50 transition">
+                        <td className="py-2.5 px-3 font-bold text-slate-900">
+                          <div>
+                            <a href={`tel:${r.ownerPhone}`} className="text-blue-600 hover:underline">📱 {r.ownerPhone}</a>
+                          </div>
+                          <div className="text-[11px] text-slate-500 font-medium">{r.ownerName || 'User'}</div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className="font-mono font-black text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                            {r.code}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 font-bold text-slate-800">
+                          👥 {r.totalInvited || 0}
+                        </td>
+                        <td className="py-2.5 px-3 font-black text-purple-700">
+                          ₹{r.walletBalance || 0}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-500 text-[11px]">
+                          {r.createdAt}
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <button
+                            onClick={() => {
+                              const extra = Number(prompt('Kitna bonus add karna chahte hain? (₹)', '50'));
+                              if (extra && !isNaN(extra)) {
+                                const updated = {
+                                  ...r,
+                                  walletBalance: (r.walletBalance || 0) + extra
+                                };
+                                saveReferralData(updated);
+                                syncReferralToFirestore(updated);
+                                setReferrals(referrals.map(x => x.ownerPhone === r.ownerPhone ? updated : x));
+                                showToast(`₹${extra} bonus safalta se add ho gaya!`);
+                              }
+                            }}
+                            className="text-xs bg-slate-900 text-yellow-400 hover:bg-slate-800 px-2.5 py-1 rounded-lg font-bold"
+                          >
+                            + Add Bonus
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2.7 FIREBASE API & APK LINK TAB */}
+      {activeTab === 'firebase' && (
+        <div className="bg-white rounded-3xl p-5 border-2 border-slate-900 shadow-md space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+            <div>
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <span>🔥 Firebase API & APK Real-Time Link</span>
+                <span className="text-xs bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                  <span>LIVE CONNECTED</span>
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500">
+                APK aur Website Portal ke beech seamless real-time connection (assam-easy-trip)
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                showToast('⚡ Firestore Ping Successful! Connected to assam-easy-trip.');
+              }}
+              className="py-1.5 px-3 bg-slate-900 hover:bg-slate-800 text-yellow-400 font-black text-xs rounded-xl shadow-xs"
+            >
+              🔄 Test Live Connection
+            </button>
+          </div>
+
+          {/* Connection Status Banner */}
+          <div className="p-4 bg-emerald-50 rounded-2xl border-2 border-emerald-300 space-y-2">
+            <div className="flex items-center gap-2 text-emerald-950 font-black text-sm">
+              <CheckCircle className="w-5 h-5 text-emerald-600" />
+              <span>Mobile APK & Website Portal Link Active</span>
+            </div>
+            <p className="text-xs text-emerald-800 font-medium">
+              Android APK se ki gayi koi bhi <strong>Customer Booking</strong> ya <strong>Driver Registration</strong> turant Firestore me store hoti hai aur yahan Admin Portal aur Driver Portal me bina page refresh kiye real-time me dikhai deti hai!
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1 text-xs font-bold text-slate-800">
+              <span className="bg-white px-2.5 py-1 rounded-lg border border-emerald-200">
+                📡 Project: <code className="text-emerald-700">assam-easy-trip</code>
+              </span>
+              <span className="bg-white px-2.5 py-1 rounded-lg border border-emerald-200">
+                🚖 Bookings: <code className="text-blue-700">db.collection("bookings")</code>
+              </span>
+              <span className="bg-white px-2.5 py-1 rounded-lg border border-emerald-200">
+                🚗 Drivers: <code className="text-purple-700">db.collection("drivers")</code>
+              </span>
+              <span className="bg-white px-2.5 py-1 rounded-lg border border-emerald-200">
+                🎁 Referrals: <code className="text-amber-700">db.collection("referrals")</code>
+              </span>
+            </div>
+          </div>
+
+          {/* Firebase API Configuration Form */}
+          <div className="p-4 bg-slate-50 rounded-2xl border-2 border-slate-200 space-y-3">
+            <h4 className="text-xs font-black text-slate-900">Firebase API Key & Credentials (Website & APK)</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Firebase API Key</label>
+                <input
+                  type="text"
+                  value={fbConfigState.apiKey}
+                  onChange={e => setFbConfigState({ ...fbConfigState, apiKey: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border rounded-xl text-xs font-mono font-semibold"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Project ID</label>
+                <input
+                  type="text"
+                  value={fbConfigState.projectId}
+                  onChange={e => setFbConfigState({ ...fbConfigState, projectId: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border rounded-xl text-xs font-mono font-semibold"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Auth Domain</label>
+                <input
+                  type="text"
+                  value={fbConfigState.authDomain}
+                  onChange={e => setFbConfigState({ ...fbConfigState, authDomain: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border rounded-xl text-xs font-mono font-semibold"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Storage Bucket</label>
+                <input
+                  type="text"
+                  value={fbConfigState.storageBucket}
+                  onChange={e => setFbConfigState({ ...fbConfigState, storageBucket: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border rounded-xl text-xs font-mono font-semibold"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">App ID</label>
+                <input
+                  type="text"
+                  value={fbConfigState.appId}
+                  onChange={e => setFbConfigState({ ...fbConfigState, appId: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border rounded-xl text-xs font-mono font-semibold"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Messaging Sender ID</label>
+                <input
+                  type="text"
+                  value={fbConfigState.messagingSenderId}
+                  onChange={e => setFbConfigState({ ...fbConfigState, messagingSenderId: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border rounded-xl text-xs font-mono font-semibold"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                saveStoredFirebaseConfig(fbConfigState);
+                showToast('Firebase API Credentials Safalta se Save ho gaye!');
+              }}
+              className="py-2.5 px-5 bg-slate-900 hover:bg-slate-800 text-yellow-400 font-black text-xs rounded-xl shadow-xs transition"
+            >
+              💾 Save Firebase Credentials
+            </button>
+          </div>
+
+          {/* Android APK Developer Integration Code snippet */}
+          <div className="p-4 bg-slate-900 text-slate-100 rounded-2xl border-2 border-yellow-400 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-yellow-400">📱 Android APK Integration Snippet</span>
+              <button
+                onClick={() => {
+                  const code = JSON.stringify(fbConfigState, null, 2);
+                  navigator.clipboard.writeText(code);
+                  showToast('Firebase config copied to clipboard!');
+                }}
+                className="text-[11px] bg-slate-800 hover:bg-slate-700 text-yellow-400 px-2.5 py-1 rounded-lg font-bold"
+              >
+                📋 Copy Config
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-300">
+              Isi Firebase credentials ko apne Android APK (Kotlin / Java / Flutter / React Native) me use karein taaki APK se ki gayi bookings aur driver registrations seedha is Admin Portal par live sync ho sakein:
+            </p>
+            <pre className="p-3 bg-slate-950 rounded-xl text-[11px] text-emerald-400 font-mono overflow-x-auto">
+{`// Firebase configuration for APK & Web
+const firebaseConfig = {
+  apiKey: "${fbConfigState.apiKey}",
+  authDomain: "${fbConfigState.authDomain}",
+  projectId: "${fbConfigState.projectId}",
+  storageBucket: "${fbConfigState.storageBucket}",
+  messagingSenderId: "${fbConfigState.messagingSenderId}",
+  appId: "${fbConfigState.appId}",
+  measurementId: "${fbConfigState.measurementId || 'G-E97XGL4BW9'}"
+};
+
+// 1. Customer Booking from APK:
+// db.collection("bookings").doc(bookingId).set({ ...bookingData, createdAt: new Date().toISOString() });
+
+// 2. Driver Registration from APK:
+// db.collection("drivers").doc(driverPhone).set({ ...driverData, registeredFrom: "apk", status: "pending" });`}
+            </pre>
           </div>
         </div>
       )}

@@ -11,20 +11,23 @@ export interface Booking {
   customerName?: string;
   name: string;
   phone: string;
+  pickup?: string;
   from?: string;
   fromName: string;
+  drop?: string;
   to?: string;
   toName: string;
   fromLat: number;
   fromLng: number;
   toLat: number;
   toLng: number;
+  googleMapLink?: string;
   km: string;
   fare?: string;
   price: string;
   vehicle: string;
   otp: number | string;
-  status: 'pending' | 'accepted' | 'completed' | 'cancelled';
+  status: 'new' | 'pending' | 'accepted' | 'completed' | 'cancelled';
   time: string;
   driverId?: string;
   driver?: string;
@@ -37,6 +40,8 @@ export interface Booking {
   completedAt?: string;
   cancelledAt?: string;
   createdAt?: any;
+  referralCode?: string;
+  discount?: number;
 }
 
 export interface Driver {
@@ -63,6 +68,8 @@ export interface Driver {
   locked?: boolean;
   isOnDuty?: boolean;
   created: string;
+  createdAt?: any;
+  registeredFrom?: 'app' | 'apk' | 'web';
 }
 
 export interface CustomerUser {
@@ -70,8 +77,36 @@ export interface CustomerUser {
   name: string;
   phone: string;
   pass: string;
+  referralCode?: string;
+  walletBalance?: number;
   savedPlaces?: { label: string; name: string; lat: number; lng: number }[];
   createdAt: string;
+}
+
+export interface ReferralData {
+  code: string;
+  ownerPhone: string;
+  ownerName: string;
+  totalInvited: number;
+  walletBalance: number;
+  createdAt: string;
+  history?: {
+    friendPhone: string;
+    friendName?: string;
+    date: string;
+    bonusEarned: number;
+    status: 'joined' | 'completed_ride';
+  }[];
+}
+
+export interface FirebaseApiConfig {
+  apiKey: string;
+  authDomain: string;
+  projectId: string;
+  storageBucket: string;
+  messagingSenderId: string;
+  appId: string;
+  measurementId?: string;
 }
 
 export interface DriverPayment {
@@ -103,6 +138,12 @@ export interface AppConfig {
   qrNote: string;
   apkVersion: number;
   apkLink: string;
+  referral: {
+    enabled: boolean;
+    referrerBonus: number; // e.g. 50
+    newUserDiscount: number; // e.g. 25
+    promoMessageAssamese: string;
+  };
   design: {
     logo: string;
     primary: string;

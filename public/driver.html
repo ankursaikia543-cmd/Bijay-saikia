@@ -3,14 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>ASSAM EASY TRIP - Driver Portal (Live Firestore)</title>
+  <title>যাত্ৰা (YATRA) - চালক পৰ্টেল (Real-Time Firestore)</title>
   <meta name="theme-color" content="#0f172a">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans pb-12">
-  <!-- Top Navigation -->
+  <!-- Top Navigation Header -->
   <header class="bg-slate-900 border-b border-yellow-400/40 p-4 sticky top-0 z-50 shadow-lg">
     <div class="max-w-4xl mx-auto flex items-center justify-between">
       <div class="flex items-center gap-3">
@@ -18,106 +16,74 @@
           🚖
         </div>
         <div>
-          <h1 class="text-base font-black text-yellow-400 leading-tight">ASSAM EASY TRIP</h1>
+          <h1 class="text-base font-black text-yellow-400 leading-tight">যাত্ৰা (YATRA)</h1>
           <p class="text-xs text-slate-400 font-semibold">Driver Portal • Live Firestore</p>
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <a href="/?portal=driver" class="px-3 py-1.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 text-xs font-black shadow-sm transition">
-          📱 Open App View
+        <a href="/?portal=driver" class="px-3.5 py-1.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 text-xs font-black shadow-sm transition">
+          📱 Open Mobile App
         </a>
       </div>
     </div>
   </header>
 
-  <!-- Driver Header Profile & Duty Status -->
   <main class="max-w-4xl mx-auto w-full p-4 space-y-4">
-    <div class="bg-slate-900 rounded-3xl p-4 border border-slate-800 shadow-md flex flex-wrap items-center justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <div class="w-12 h-12 rounded-2xl bg-slate-800 border-2 border-yellow-400 flex items-center justify-center text-2xl">
-          👨‍✈️
-        </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <span id="driverNameDisplay" class="font-black text-sm text-white">Driver Portal Active</span>
-            <span class="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
-              ID: <span id="driverIdDisplay">DRV-785612</span>
-            </span>
+    <!-- Driver Login & Profile Box -->
+    <div class="bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-800 shadow-md">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-2xl bg-slate-800 border-2 border-yellow-400 flex items-center justify-center text-2xl">
+            👨‍✈️
           </div>
-          <p class="text-xs text-slate-400" id="driverPhoneDisplay">Phone: 8638803320 • Bokakhat Hub</p>
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="driverNameDisplay" class="font-black text-sm text-white">Driver (Not logged in)</span>
+              <span class="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+                ID: <span id="driverIdDisplay">-</span>
+              </span>
+            </div>
+            <p class="text-xs text-slate-400" id="driverPhoneDisplay">Phone: Please enter phone number below</p>
+          </div>
         </div>
-      </div>
 
-      <div class="flex items-center gap-2">
-        <button id="toggleDutyBtn" class="px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs flex items-center gap-2 shadow-sm transition">
-          <span class="w-2.5 h-2.5 rounded-full bg-slate-950 animate-ping"></span>
-          <span>ON DUTY</span>
-        </button>
+        <!-- Phone Login input (Saves to localStorage as requested) -->
+        <div class="flex items-center gap-2 w-full sm:w-auto">
+          <input
+            id="driverPhoneInput"
+            type="tel"
+            placeholder="Driver Phone (e.g. 8638803320)"
+            class="px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-yellow-400 flex-1 sm:w-48"
+          />
+          <button id="savePhoneBtn" class="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black text-xs rounded-xl shadow-sm transition shrink-0">
+            Save & Login
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- Realtime Alert Banner -->
+    <!-- Realtime Audio Alert Banner -->
     <div id="ringtoneNotice" class="hidden bg-yellow-400 text-slate-950 px-4 py-3 rounded-2xl font-black text-xs flex items-center justify-between animate-pulse">
       <div class="flex items-center gap-2">
         <span class="text-lg">🔔</span>
-        <span>NAYA RIDE REQUEST AAYA HAI! Kripya neeche Accept karein.</span>
+        <span>NAYA RIDE AAYA HAI! Kripya neeche Accept karein.</span>
       </div>
       <button id="stopAlertBtn" class="px-3 py-1 bg-slate-950 text-yellow-400 rounded-lg text-xs font-extrabold">
         Silent Alert
       </button>
     </div>
 
-    <!-- Active Accepted Ride Section -->
-    <div id="activeRideSection" class="hidden bg-slate-900 border-2 border-yellow-400 rounded-3xl p-4 shadow-xl space-y-3">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-        <span class="text-xs font-black text-yellow-400 uppercase tracking-wider flex items-center gap-1.5">
-          <span class="w-2 h-2 rounded-full bg-yellow-400 animate-ping"></span>
-          Current Active Ride
-        </span>
-        <span id="activeOtpBadge" class="text-xs font-black bg-yellow-400 text-slate-950 px-2.5 py-0.5 rounded-lg">
-          OTP: 1234
-        </span>
-      </div>
-
-      <div class="space-y-1.5 text-xs">
-        <div class="flex justify-between text-slate-300">
-          <span>Customer:</span>
-          <span id="activeCustName" class="font-bold text-white">-</span>
-        </div>
-        <div class="flex justify-between text-slate-300">
-          <span>Phone:</span>
-          <a id="activeCustPhone" href="#" class="font-bold text-yellow-400 underline">-</a>
-        </div>
-        <div class="flex justify-between text-slate-300">
-          <span>Pickup (From):</span>
-          <span id="activeFrom" class="font-bold text-white text-right">-</span>
-        </div>
-        <div class="flex justify-between text-slate-300">
-          <span>Drop (To):</span>
-          <span id="activeTo" class="font-bold text-white text-right">-</span>
-        </div>
-        <div class="flex justify-between text-slate-300">
-          <span>Fare Amount:</span>
-          <span id="activeFare" class="font-black text-yellow-400 text-sm">-</span>
-        </div>
-      </div>
-
-      <div class="pt-2 flex gap-2">
-        <button id="completeActiveBtn" class="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black rounded-xl text-xs transition">
-          ✅ Complete Ride
-        </button>
-      </div>
-    </div>
-
-    <!-- Real-time Firestore Pending Bookings List -->
-    <div class="bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-800 shadow-md space-y-3">
+    <!-- Real-time Firestore NEW Bookings List -->
+    <div class="bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-800 shadow-xl space-y-3">
       <div class="flex items-center justify-between border-b border-slate-800 pb-3">
         <div>
-          <h2 class="text-sm font-black text-white flex items-center gap-2">
-            <span>📍 Real-Time Incoming Bookings</span>
-            <span id="pendingBadge" class="bg-yellow-400 text-slate-950 text-xs px-2 py-0.5 rounded-full font-black">0</span>
+          <h2 class="text-base font-black text-white flex items-center gap-2">
+            <span>📍 Real-Time New Incoming Bookings</span>
+            <span id="newCountBadge" class="bg-yellow-400 text-slate-950 text-xs px-2.5 py-0.5 rounded-full font-black">0</span>
           </h2>
-          <p class="text-xs text-slate-400 mt-0.5">Firestore collection: <code>et_bookings</code> (status=='pending')</p>
+          <p class="text-xs text-slate-400 mt-0.5">
+            <code>db.collection("bookings").where("status","==","new").onSnapshot(...)</code>
+          </p>
         </div>
         <span class="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20">
           ⚡ onSnapshot Live
@@ -126,7 +92,7 @@
 
       <div id="bookingsList" class="space-y-3 pt-1">
         <div class="p-8 text-center text-slate-500 text-xs font-semibold">
-          Abhi koi naya pending booking nahi hai. Naye ride aane par yahan turant alert hoga.
+          Abhi koi naya booking nahi hai. Naye ride aate hi yahan turant sound ke saath show hoga.
         </div>
       </div>
     </div>
@@ -136,6 +102,7 @@
   <script type="module">
     import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
     import {
+      initializeFirestore,
       getFirestore,
       collection,
       query,
@@ -146,14 +113,15 @@
       setDoc
     } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
+    // Firebase configuration provided by user
     const firebaseConfig = {
-      apiKey: "AIzaSyAl3Y4UJ9XdI3xBXNF6PuIAypz3PjYv1ng",
-      authDomain: "easy-trip-d601a.firebaseapp.com",
-      databaseURL: "https://easy-trip-d601a-default-rtdb.firebaseio.com",
-      projectId: "easy-trip-d601a",
-      storageBucket: "easy-trip-d601a.appspot.com",
-      messagingSenderId: "123456789000",
-      appId: "1:123456789000:web:abcdef123456"
+      apiKey: "AIzaSyCmk5tezl0WeHgQn5diBkfQYF_KsqzwEGw",
+      authDomain: "assam-easy-trip.firebaseapp.com",
+      projectId: "assam-easy-trip",
+      storageBucket: "assam-easy-trip.firebasestorage.app",
+      messagingSenderId: "1061198552076",
+      appId: "1:1061198552076:web:41407c10c89baa754a6229",
+      measurementId: "G-E97XGL4BW9"
     };
 
     let app;
@@ -162,26 +130,41 @@
     } catch (e) {
       console.warn('Firebase init:', e);
     }
-    const db = getFirestore(app);
 
-    // Driver local state
-    let storedDriver = null;
+    let db;
     try {
-      const raw = localStorage.getItem('et_driver_user');
-      if (raw) storedDriver = JSON.parse(raw);
-    } catch (e) {}
+      db = initializeFirestore(app, { experimentalForceLongPolling: true });
+    } catch (e) {
+      db = getFirestore(app);
+    }
 
-    const driverId = storedDriver ? String(storedDriver.id || storedDriver.phone) : 'DRV-8638803320';
-    const driverName = storedDriver ? storedDriver.name : 'Assam Driver';
-    const driverPhone = storedDriver ? storedDriver.phone : '8638803320';
+    // 1. Manage driverPhone in localStorage as requested:
+    // "Jab driver login kare to localStorage me uska phone save karo."
+    let driverPhone = localStorage.getItem('driverPhone') || '8638803320';
+    let driverName = localStorage.getItem('driverName') || 'Driver';
 
-    document.getElementById('driverNameDisplay').textContent = driverName;
-    document.getElementById('driverIdDisplay').textContent = driverId;
-    document.getElementById('driverPhoneDisplay').textContent = `Phone: ${driverPhone} • Bokakhat Hub`;
+    function updateDriverDisplay() {
+      document.getElementById('driverPhoneDisplay').textContent = `Phone: ${driverPhone} • Active`;
+      document.getElementById('driverNameDisplay').textContent = `${driverName} (${driverPhone})`;
+      document.getElementById('driverIdDisplay').textContent = driverPhone;
+      document.getElementById('driverPhoneInput').value = driverPhone;
+    }
+    updateDriverDisplay();
 
-    let activeBookingDocId = null;
+    document.getElementById('savePhoneBtn').addEventListener('click', () => {
+      const input = document.getElementById('driverPhoneInput').value.trim();
+      if (!input) {
+        alert('Kripya phone number enter karein!');
+        return;
+      }
+      driverPhone = input;
+      // Save in localStorage as requested
+      localStorage.setItem('driverPhone', input);
+      updateDriverDisplay();
+      alert('✅ Phone saved to localStorage: ' + input);
+    });
 
-    // AUDIO ALERT
+    // Audio Alert System
     let audioContext = null;
     let ringInterval = null;
 
@@ -225,15 +208,16 @@
 
     document.getElementById('stopAlertBtn').addEventListener('click', stopRingtone);
 
-    // OnSnapshot on et_bookings where status == 'pending'
+    // 2. Real-time Firestore Query:
+    // db.collection("bookings").where("status","==","new").onSnapshot(snapshot => show all new bookings)
     const q = query(
-      collection(db, 'et_bookings'),
-      where('status', '==', 'pending')
+      collection(db, 'bookings'),
+      where('status', '==', 'new')
     );
 
     onSnapshot(q, (snapshot) => {
       const container = document.getElementById('bookingsList');
-      const badge = document.getElementById('pendingBadge');
+      const badge = document.getElementById('newCountBadge');
 
       const bookings = [];
       snapshot.forEach((docSnap) => {
@@ -246,25 +230,26 @@
         stopRingtone();
         container.innerHTML = `
           <div class="p-8 text-center text-slate-500 text-xs font-semibold">
-            Abhi koi naya pending booking nahi hai. Naye ride aane par yahan turant alert hoga.
+            Abhi koi naya booking nahi hai. Naye ride aate hi yahan turant sound ke saath show hoga.
           </div>
         `;
         return;
       }
 
       startRingtone();
-
       container.innerHTML = '';
+
       bookings.forEach((b) => {
         const card = document.createElement('div');
-        card.className = 'bg-slate-950 p-4 rounded-2xl border border-yellow-400/40 shadow-md space-y-2';
+        card.className = 'bg-slate-950 p-4 rounded-2xl border border-yellow-400/40 shadow-md space-y-2.5';
 
         const custName = b.customerName || b.name || 'Customer';
         const phone = b.phone || 'N/A';
-        const from = b.from || b.fromName || 'Pickup Location';
-        const to = b.to || b.toName || 'Drop Location';
+        const pickup = b.pickup || b.from || b.fromName || 'Pickup Location';
+        const drop = b.drop || b.to || b.toName || 'Drop Location';
         const fare = b.fare || b.price || '₹50';
         const vehicle = b.vehicle || 'Auto';
+        const mapLink = b.googleMapLink || `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(pickup)}&destination=${encodeURIComponent(drop)}`;
 
         card.innerHTML = `
           <div class="flex items-center justify-between">
@@ -276,18 +261,18 @@
             <span class="text-base font-black text-yellow-400">${fare}</span>
           </div>
 
-          <div class="text-xs space-y-1 text-slate-300">
+          <div class="text-xs space-y-1.5 text-slate-300">
             <div class="flex items-start gap-1.5">
-              <span class="text-emerald-400 font-bold">🟢 From:</span>
-              <span class="text-slate-200">${from}</span>
+              <span class="text-emerald-400 font-bold">🟢 Pickup:</span>
+              <span class="text-slate-100 font-medium">${pickup}</span>
             </div>
             <div class="flex items-start gap-1.5">
-              <span class="text-rose-400 font-bold">🏁 To:</span>
-              <span class="text-slate-200">${to}</span>
+              <span class="text-rose-400 font-bold">🏁 Drop:</span>
+              <span class="text-slate-100 font-medium">${drop}</span>
             </div>
-            <div class="flex items-center gap-1.5 text-slate-400 text-[11px]">
-              <span>📞 Phone:</span>
-              <a href="tel:${phone}" class="text-yellow-400 underline font-semibold">${phone}</a>
+            <div class="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px] text-slate-400">
+              <div>📞 Phone: <a href="tel:${phone}" class="text-yellow-400 underline font-semibold">${phone}</a></div>
+              <a href="${mapLink}" target="_blank" class="text-blue-400 hover:underline font-bold">🗺️ Google Map Navigation ↗</a>
             </div>
           </div>
 
@@ -302,71 +287,36 @@
         container.appendChild(card);
       });
 
-      // Bind accept buttons
+      // 3. Accept button:
+      // db.collection("bookings").doc(bookingId).update({status:"accepted", driverId: driverPhone, driverName: driverName})
       document.querySelectorAll('.accept-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-          const docId = btn.getAttribute('data-id');
-          await acceptBooking(docId);
+        btn.addEventListener('click', async () => {
+          const bId = btn.getAttribute('data-id');
+          await acceptBooking(bId);
         });
       });
     }, (error) => {
-      console.warn('Firestore onSnapshot pending error:', error);
+      console.warn('onSnapshot bookings where status==new error:', error);
     });
 
-    // Accept Booking function
-    async function acceptBooking(bookingDocId) {
+    async function acceptBooking(bookingId) {
       stopRingtone();
       try {
-        const bDoc = doc(db, 'et_bookings', String(bookingDocId));
+        const bDoc = doc(db, 'bookings', String(bookingId));
         await updateDoc(bDoc, {
           status: 'accepted',
-          driverId: driverId,
-          driver: driverPhone,
-          driverPhone: driverPhone,
+          driverId: driverPhone,
           driverName: driverName,
+          driverPhone: driverPhone,
           acceptedAt: new Date().toISOString()
         });
 
-        // Also sync to local storage if existing
-        try {
-          const raw = localStorage.getItem('et_bookings');
-          if (raw) {
-            const list = JSON.parse(raw);
-            const found = list.find(x => String(x.id) === String(bookingDocId));
-            if (found) {
-              found.status = 'accepted';
-              found.driverId = driverId;
-              found.driverPhone = driverPhone;
-              found.driverName = driverName;
-              localStorage.setItem('et_bookings', JSON.stringify(list));
-            }
-          }
-        } catch (e) {}
-
-        activeBookingDocId = bookingDocId;
-        alert('✅ Ride Accepted! Status updated to accepted with driverId in Firestore.');
+        alert(`✅ Ride Accepted!\nFirestore Document ${bookingId} updated with status: accepted, driverId: ${driverPhone}`);
       } catch (e) {
-        console.error('Accept error:', e);
-        alert('Accept Error: ' + e.message);
+        console.error('Accept booking error:', e);
+        alert('Error accepting ride: ' + e.message);
       }
     }
-
-    // Complete ride action
-    document.getElementById('completeActiveBtn').addEventListener('click', async () => {
-      if (!activeBookingDocId) return;
-      try {
-        const bDoc = doc(db, 'et_bookings', String(activeBookingDocId));
-        await updateDoc(bDoc, {
-          status: 'completed',
-          completedAt: new Date().toLocaleTimeString()
-        });
-        document.getElementById('activeRideSection').classList.add('hidden');
-        activeBookingDocId = null;
-        alert('🎉 Ride Completed!');
-      } catch (e) {
-        alert('Error: ' + e.message);
-      }
-    });
   </script>
 </body>
 </html>

@@ -6,7 +6,7 @@ import { soundService } from '../services/soundService';
 import {
   initFirebaseBookingsSync, syncBookingToFirebase, filterAndSyncDriverLocation,
   subscribeToPendingBookings, acceptBookingInFirestore, completeBookingInFirestore,
-  syncDriverToFirestore
+  syncDriverToFirestore, registerDriverToFirestore
 } from '../services/firebase';
 import { LiveRouteMap } from './LiveRouteMap';
 
@@ -97,8 +97,8 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
     // Real-time onSnapshot on et_bookings where status=='pending'
     const unsub = subscribeToPendingBookings((remoteBookings) => {
       if (remoteBookings) {
-        // Only accept orders that strictly match this driver's vehicle type!
-        const pend = remoteBookings.filter(b => b.status === 'pending' && (!driver || matchesDriverVehicle(driver.vtype, b.vehicle)));
+        // Only show new incoming bookings matching this driver's vehicle type
+        const pend = remoteBookings.filter(b => (b.status === 'new' || b.status === 'pending') && (!driver || matchesDriverVehicle(driver.vtype, b.vehicle)));
         setPendingBookings(pend);
         if (driver) {
           const active = remoteBookings.find(b => b.status === 'accepted' && (b.driver === driver.phone || b.driverPhone === driver.phone));
@@ -129,8 +129,8 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
     if (!driver) return;
 
     const all = getBookings();
-    // Only pending rides for this specific vehicle category
-    const pend = all.filter(b => b.status === 'pending' && matchesDriverVehicle(driver.vtype, b.vehicle));
+    // Only new/pending rides for this specific vehicle category
+    const pend = all.filter(b => (b.status === 'new' || b.status === 'pending') && matchesDriverVehicle(driver.vtype, b.vehicle));
     setPendingBookings(pend);
 
     const active = all.find(b => b.status === 'accepted' && (b.driver === driver.phone || b.driverPhone === driver.phone));
@@ -167,6 +167,21 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
   };
 
   // Driver Login
+  // Load saved driver from localStorage if present
+  useEffect(() => {
+    if (!driver) {
+      const savedPhone = localStorage.getItem('driverPhone');
+      if (savedPhone) {
+        const drivers = getDrivers();
+        const found = drivers.find(d => d.phone === savedPhone.trim());
+        if (found) {
+          setCurrentDriver(found);
+          setDriver(found);
+        }
+      }
+    }
+  }, []);
+
   const handleDriverLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
@@ -184,6 +199,8 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
       return;
     }
 
+    // Save driver phone in localStorage as requested
+    localStorage.setItem('driverPhone', cleanPhone);
     setCurrentDriver(found);
     setDriver(found);
   };
@@ -220,6 +237,11 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
 
     drivers.push(newDriver);
     saveDrivers(drivers);
+    // Save driver phone in localStorage as requested
+    localStorage.setItem('driverPhone', newDriver.phone);
+    // Realtime sync to Firestore so Admin website portal sees this new driver immediately
+    registerDriverToFirestore(newDriver);
+    syncDriverToFirestore(newDriver);
     setCurrentDriver(newDriver);
     setDriver(newDriver);
   };
@@ -415,8 +437,8 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
           <div className="w-14 h-14 bg-yellow-400 text-slate-950 font-black rounded-2xl flex items-center justify-center mx-auto text-2xl border-2 border-slate-950 shadow-md">
             🚗
           </div>
-          <h2 className="text-xl font-black text-slate-900">Driver Portal</h2>
-          <p className="text-xs text-slate-500">Login or Register in 1 minute to receive rides</p>
+          <h2 className="text-xl font-black text-slate-900">যাত্ৰা (YATRA) - Driver Portal</h2>
+          <p className="text-xs text-slate-500">Live Rides • Login or Register in 1 minute</p>
         </div>
 
         {authError && (
@@ -618,6 +640,7 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
             onClick={() => {
               setCurrentDriver(null);
               setDriver(null);
+              localStorage.removeItem('driverPhone');
               soundService.stopContinuousRingtone();
             }}
             className="p-2.5 rounded-2xl bg-slate-100 hover:bg-rose-100 text-slate-500 hover:text-rose-600 border border-slate-300 transition"
