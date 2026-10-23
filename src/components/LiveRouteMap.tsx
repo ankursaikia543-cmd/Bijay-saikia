@@ -299,7 +299,11 @@ export const LiveRouteMap: React.FC<Props> = ({
     }
 
     // Fit Bounds dynamically
-    const boundsPoints: L.LatLngExpression[] = [];
+    // Fit bounds only once on first load
+if (fromCoords && toCoords && !map.getBounds().contains(fromCoords)) {
+   const bounds = L.latLngBounds([fromCoords, toCoords]);
+   map.fitBounds(bounds, { padding: [40, 40] });
+}
     if (fromCoords && fromCoords[0]) boundsPoints.push(fromCoords);
     if (toCoords && toCoords[0]) boundsPoints.push(toCoords);
     if (driverCoords && driverCoords[0]) boundsPoints.push(driverCoords);
