@@ -34,7 +34,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   qr: "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=upi://pay?pa=admin@upi",
   qrNote: "Driver Daily ₹200 / Monthly ₹4000. Send payment screenshot to admin.",
   apkVersion: 34.0,
-  apkLink: "https://drive.usercontent.google.com/download?id=1QFJh28EgryuY2O4j0gJVv4AjN8dOegej&export=download&authuser=0",
+  apkLink: https://github.com/ankursaikia543-cmd/Bijay-saikia/releases/download/v2/yatra-v2.apk
   referral: {
     enabled: true,
     referrerBonus: 50, // ₹50 to inviter
