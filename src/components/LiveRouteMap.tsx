@@ -299,11 +299,31 @@ export const LiveRouteMap: React.FC<Props> = ({
     }
 
     // Fit Bounds dynamically
-    // Fit bounds only once on first load
-if (fromCoords && toCoords && !map.getBounds().contains(fromCoords)) {
-   const bounds = L.latLngBounds([fromCoords, toCoords]);
-   map.fitBounds(bounds, { padding: [40, 40] });
-}
+      // Fit Bounds dynamically
+  const boundsPoints: L.LatLngExpression[] = [];
+  if (fromCoords) boundsPoints.push(fromCoords);
+  if (toCoords) boundsPoints.push(toCoords);
+  if (driverCoords) boundsPoints.push(driverCoords);
+  if (fleetDrivers && fleetDrivers.length > 0) {
+    fleetDrivers.forEach((d: any) => {
+      const dLat = Number(d.lat || 26.6247);
+      const dLng = Number(d.lng || 93.9615);
+      if (!isNaN(dLat) && !isNaN(dLng)) {
+        boundsPoints.push([dLat, dLng] as any);
+      }
+    });
+  }
+
+  if (fleetLayerRef.current) {
+    fleetLayerRef.current.clearLayers();
+  }
+
+  if (boundsPoints.length >= 2) {
+    const bounds = L.latLngBounds(boundsPoints);
+    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+  } else if (boundsPoints.length === 1) {
+    map.setView(boundsPoints[0] as any, 14);
+  }
     if (fromCoords && fromCoords[0]) boundsPoints.push(fromCoords);
     if (toCoords && toCoords[0]) boundsPoints.push(toCoords);
     if (driverCoords && driverCoords[0]) boundsPoints.push(driverCoords);
