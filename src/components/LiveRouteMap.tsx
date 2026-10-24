@@ -320,9 +320,9 @@ export const LiveRouteMap: React.FC<Props> = ({
 
   if (boundsPoints.length >= 2) {
     const bounds = L.latLngBounds(boundsPoints);
-    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+   // map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 }); // DISABLED - flicker rokne ke liye
   } else if (boundsPoints.length === 1) {
-    map.setView(boundsPoints[0] as any, 14);
+    // map.setView(boundsPoints[0] as any, 14); // DISABLED
   }
     if (fromCoords && fromCoords[0]) boundsPoints.push(fromCoords);
     if (toCoords && toCoords[0]) boundsPoints.push(toCoords);
