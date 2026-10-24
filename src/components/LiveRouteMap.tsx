@@ -277,7 +277,7 @@ setRouteLine([fromCoords, toCoords]);
         })
         .catch(() => {
           // Keep straight dotted line as fallback
-        });
+        })
     } else if (blueRouteLineRef.current) {
       map.removeLayer(blueRouteLineRef.current);
       blueRouteLineRef.current = null;
