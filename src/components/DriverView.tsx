@@ -55,7 +55,11 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
     }
   }, [driver]);
 
-  // Strict vehicle-matching filter (Auto -> Auto only, Bike -> Bike only, Cab -> Cab only)
+  // Strict vehicle-matching filter
+  // Bike -> Bike only (never Scooty, never Auto)
+  // Scooty -> Scooty only (never Bike, never Auto)
+  // Auto -> Auto only (never Bike, never Scooty)
+  // Mini / Sedan / SUV -> strictly matching car category
   const matchesDriverVehicle = (driverVType?: string, bookingVehicle?: string): boolean => {
     if (!driverVType || !bookingVehicle) return false;
     const d = driverVType.toLowerCase().trim();
@@ -63,25 +67,46 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
 
     if (d === b) return true;
 
-    // 1. Auto category (Auto, Auto Rickshaw, E-Rickshaw, Toto, Tempo)
+    // 1. Scooty category (Strict: ONLY Scooty/Scooter, never Motorcycle/Bike)
+    const isScootyDriver = d.includes('scooty') || d.includes('scooter');
+    const isScootyRide = b.includes('scooty') || b.includes('scooter');
+    if (isScootyDriver || isScootyRide) {
+      return isScootyDriver && isScootyRide;
+    }
+
+    // 2. Bike category (Strict: ONLY Bike/Motorcycle/Moto, never Scooty)
+    const isBikeDriver = (d.includes('bike') || d.includes('moto') || d.includes('motorcycle') || d.includes('two')) && !d.includes('scooty');
+    const isBikeRide = (b.includes('bike') || b.includes('moto') || b.includes('motorcycle') || b.includes('two')) && !b.includes('scooty');
+    if (isBikeDriver || isBikeRide) {
+      return isBikeDriver && isBikeRide;
+    }
+
+    // 3. Auto category (Strict: ONLY Auto/Rickshaw/Toto/Tempo)
     const isAutoDriver = d.includes('auto') || d.includes('rickshaw') || d.includes('toto') || d.includes('tempo');
     const isAutoRide = b.includes('auto') || b.includes('rickshaw') || b.includes('toto') || b.includes('tempo');
     if (isAutoDriver || isAutoRide) {
       return isAutoDriver && isAutoRide;
     }
 
-    // 2. Bike category (Bike, Moto, Scooty, Motorcycle, Two Wheeler)
-    const isBikeDriver = d.includes('bike') || d.includes('moto') || d.includes('scooty') || d.includes('motorcycle') || d.includes('two');
-    const isBikeRide = b.includes('bike') || b.includes('moto') || b.includes('scooty') || b.includes('motorcycle') || b.includes('two');
-    if (isBikeDriver || isBikeRide) {
-      return isBikeDriver && isBikeRide;
+    // 4. Mini category
+    const isMiniDriver = d.includes('mini');
+    const isMiniRide = b.includes('mini');
+    if (isMiniDriver || isMiniRide) {
+      return isMiniDriver && isMiniRide;
     }
 
-    // 3. Cab / Car category (Cab, Car, Mini, Sedan, Taxi, SUV, Prime)
-    const isCabDriver = d.includes('cab') || d.includes('car') || d.includes('mini') || d.includes('sedan') || d.includes('taxi') || d.includes('suv') || d.includes('prime');
-    const isCabRide = b.includes('cab') || b.includes('car') || b.includes('mini') || b.includes('sedan') || b.includes('taxi') || b.includes('suv') || b.includes('prime');
-    if (isCabDriver || isCabRide) {
-      return isCabDriver && isCabRide;
+    // 5. Sedan category
+    const isSedanDriver = d.includes('sedan');
+    const isSedanRide = b.includes('sedan');
+    if (isSedanDriver || isSedanRide) {
+      return isSedanDriver && isSedanRide;
+    }
+
+    // 6. SUV category
+    const isSuvDriver = d.includes('suv') || d.includes('van');
+    const isSuvRide = b.includes('suv') || b.includes('van');
+    if (isSuvDriver || isSuvRide) {
+      return isSuvDriver && isSuvRide;
     }
 
     return d === b;
@@ -97,6 +122,16 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
     // Real-time onSnapshot on et_bookings where status=='pending'
     const unsub = subscribeToPendingBookings((remoteBookings) => {
       if (remoteBookings) {
+        // Keep localStorage in sync with Firestore bookings
+        const localAll = getBookings();
+        const merged = [...remoteBookings];
+        localAll.forEach(lb => {
+          if (!merged.find(m => String(m.id) === String(lb.id))) {
+            merged.push(lb);
+          }
+        });
+        saveBookings(merged);
+
         // Only show new incoming bookings matching this driver's vehicle type
         const pend = remoteBookings.filter(b => (b.status === 'new' || b.status === 'pending') && (!driver || matchesDriverVehicle(driver.vtype, b.vehicle)));
         setPendingBookings(pend);
@@ -232,18 +267,20 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
       loc: 'Bokakhat Town',
       status: 'approved', // Auto approve for smooth experience
       isOnDuty: true,
+      registeredFrom: 'apk',
       created: new Date().toLocaleDateString()
     };
 
     drivers.push(newDriver);
     saveDrivers(drivers);
-    // Save driver phone in localStorage as requested
+    // Save driver phone in localStorage
     localStorage.setItem('driverPhone', newDriver.phone);
     // Realtime sync to Firestore so Admin website portal sees this new driver immediately
     registerDriverToFirestore(newDriver);
     syncDriverToFirestore(newDriver);
     setCurrentDriver(newDriver);
     setDriver(newDriver);
+    setToastMessage(`✅ Welcome ${newDriver.name}! Registered & ON DUTY.`);
   };
 
   // Handle Photo selection
@@ -258,26 +295,58 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
   };
 
   // Accept Ride (Stops ringtone immediately!)
-  const handleAcceptRide = (bookingId: number) => {
+  const handleAcceptRide = async (bookingId: number | string) => {
     if (!driver) return;
     soundService.stopContinuousRingtone(); // STOP RINGTONE IMMEDIATELY!
 
     const all = getBookings();
-    const target = all.find(b => b.id === bookingId);
-    if (!target) return;
+    // Search in pendingBookings state FIRST, then all localStorage
+    const foundInPending = pendingBookings.find(b => String(b.id) === String(bookingId));
+    const foundInAll = all.find(b => String(b.id) === String(bookingId));
+    const base = foundInPending || foundInAll;
 
     const dId = String(driver.id || driver.phone);
-    target.status = 'accepted';
-    target.driverId = dId;
-    target.driver = driver.phone;
-    target.driverPhone = driver.phone;
-    target.driverName = driver.name;
-    target.driverPhoto = driver.photo;
-    target.driverVehNo = driver.vehno;
-    target.driverLoc = { lat: driverCoords[0], lng: driverCoords[1] };
+    const updatedTarget: Booking = base ? {
+      ...base,
+      status: 'accepted',
+      driverId: dId,
+      driver: driver.phone,
+      driverPhone: driver.phone,
+      driverName: driver.name,
+      driverPhoto: driver.photo,
+      driverVehNo: driver.vehno,
+      driverLoc: { lat: driverCoords[0], lng: driverCoords[1] }
+    } : {
+      id: Number(bookingId) || Date.now(),
+      name: 'Customer',
+      phone: '',
+      fromName: 'Pickup Location',
+      toName: 'Drop Location',
+      fromLat: driverCoords[0],
+      fromLng: driverCoords[1],
+      toLat: driverCoords[0],
+      toLng: driverCoords[1],
+      price: '₹50',
+      vehicle: driver.vtype || 'Auto',
+      otp: 1234,
+      km: '1.0',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'accepted',
+      driverId: dId,
+      driver: driver.phone,
+      driverPhone: driver.phone,
+      driverName: driver.name,
+      driverPhoto: driver.photo,
+      driverVehNo: driver.vehno,
+      driverLoc: { lat: driverCoords[0], lng: driverCoords[1] }
+    };
 
-    saveBookings(all);
-    acceptBookingInFirestore(bookingId, {
+    // Save into local storage
+    const updatedAll = [updatedTarget, ...all.filter(b => String(b.id) !== String(bookingId))];
+    saveBookings(updatedAll);
+
+    // Update in Firestore
+    await acceptBookingInFirestore(bookingId, {
       driverId: dId,
       driverPhone: driver.phone,
       driverName: driver.name,
@@ -285,14 +354,15 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
       driverVehNo: driver.vehno,
       driverLoc: { lat: driverCoords[0], lng: driverCoords[1] }
     });
-    setActiveAcceptedRide(target);
-    setPendingBookings(prev => prev.filter(b => b.id !== bookingId));
+
+    setActiveAcceptedRide(updatedTarget);
+    setPendingBookings(prev => prev.filter(b => String(b.id) !== String(bookingId)));
 
     // Update location broadcast to local storage and Firebase
     setDriverLocation(driver.phone, { lat: driverCoords[0], lng: driverCoords[1] });
     filterAndSyncDriverLocation(driver.phone, { lat: driverCoords[0], lng: driverCoords[1] });
     syncDriverToFirestore(driver, driverCoords);
-    setToastMessage(`✅ Ride Accepted! Customer: ${target.name || target.customerName}`);
+    setToastMessage(`✅ Ride Accepted! Customer: ${updatedTarget.name || updatedTarget.customerName}`);
   };
 
   // Verify OTP & Complete Trip
@@ -950,7 +1020,7 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
           driverCoords={driverCoords}
           driverBearing={driverBearing}
           driverSpeed={driverSpeed}
-          driverVehicleIcon={config.vehicles.find(v => v.name === driver.vtype)?.icon || '🚗'}
+          driverVehicleIcon={activeAcceptedRide?.vehicle || driver.vtype}
           driverName={driver.name}
           showBlueDotLine={true}
           height="320px"

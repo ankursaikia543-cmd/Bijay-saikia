@@ -381,12 +381,25 @@ export async function acceptBookingInFirestore(
 
   if (!firestoreDb) return;
   try {
-    const bDoc = doc(firestoreDb, 'bookings', String(bookingId));
+    const sId = String(bookingId);
+    // 1. Direct doc reference by string ID
+    const bDoc = doc(firestoreDb, 'bookings', sId);
     await setDoc(bDoc, updatePayload, { merge: true });
 
-    // Also update et_bookings
-    const etDoc = doc(firestoreDb, 'et_bookings', String(bookingId));
+    // 2. Also update et_bookings
+    const etDoc = doc(firestoreDb, 'et_bookings', sId);
     await setDoc(etDoc, updatePayload, { merge: true }).catch(() => {});
+
+    // 3. Query fallback in case doc was created with a generated docId
+    try {
+      const q = query(collection(firestoreDb, 'bookings'), where('id', 'in', [sId, Number(sId)]));
+      const snaps = await getDocs(q);
+      snaps.forEach(async (dSnap) => {
+        if (dSnap.id !== sId) {
+          await setDoc(doc(firestoreDb!, 'bookings', dSnap.id), updatePayload, { merge: true });
+        }
+      });
+    } catch (e2) {}
   } catch (e) {
     console.warn('Firestore acceptBooking error:', e);
   }
@@ -666,45 +679,84 @@ export async function getCustomerTripsFromFirestore(phone?: string): Promise<Boo
 const FB_CONFIG_PATH = 'config/et_cfg_v33_2';
 let isApplyingRemoteConfig = false;
 
-// SYNC CONFIG (Auto-updates in APK and Web)
+// SYNC CONFIG (Auto-updates in APK and Web in real time via Firestore)
 export function initFirebaseConfigSync(onConfigUpdated: (cfg: AppConfig) => void) {
-  if (!db) return;
-
-  const cfgRef = ref(db, FB_CONFIG_PATH);
-
-  get(cfgRef).then((snapshot) => {
-    if (snapshot.exists()) {
-      const remote = snapshot.val();
-      if (remote) {
-        isApplyingRemoteConfig = true;
-        saveAppConfig(remote);
-        onConfigUpdated(remote);
-        isApplyingRemoteConfig = false;
-      }
+  // 1. Primary: Firestore real-time sync for APK & Web
+  if (firestoreDb) {
+    try {
+      const configDocRef = doc(firestoreDb, 'app_config', 'settings');
+      onSnapshot(configDocRef, (snap) => {
+        if (snap.exists()) {
+          const remote = snap.data() as AppConfig;
+          if (remote && !isApplyingRemoteConfig) {
+            isApplyingRemoteConfig = true;
+            // Merge with local config
+            saveAppConfig(remote);
+            onConfigUpdated(remote);
+            isApplyingRemoteConfig = false;
+          }
+        }
+      }, (err) => {
+        console.warn('Firestore config listener notice:', err);
+      });
+    } catch (e) {
+      console.warn('Firestore config sync setup error:', e);
     }
-  }).catch((e) => console.warn('Firebase initial config fetch error', e));
+  }
 
-  onValue(cfgRef, (snapshot) => {
-    if (snapshot.exists()) {
-      const remote = snapshot.val();
-      if (remote) {
-        isApplyingRemoteConfig = true;
-        saveAppConfig(remote);
-        onConfigUpdated(remote);
-        isApplyingRemoteConfig = false;
-      }
-    }
-  }, (err) => {
-    console.warn('Firebase config listener notice', err);
-  });
+  // 2. Secondary: Realtime Database sync
+  if (db) {
+    try {
+      const cfgRef = ref(db, FB_CONFIG_PATH);
+      get(cfgRef).then((snapshot) => {
+        if (snapshot.exists()) {
+          const remote = snapshot.val();
+          if (remote && !isApplyingRemoteConfig) {
+            isApplyingRemoteConfig = true;
+            saveAppConfig(remote);
+            onConfigUpdated(remote);
+            isApplyingRemoteConfig = false;
+          }
+        }
+      }).catch((e) => console.warn('Firebase initial config fetch error', e));
+
+      onValue(cfgRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const remote = snapshot.val();
+          if (remote && !isApplyingRemoteConfig) {
+            isApplyingRemoteConfig = true;
+            saveAppConfig(remote);
+            onConfigUpdated(remote);
+            isApplyingRemoteConfig = false;
+          }
+        }
+      }, (err) => {
+        console.warn('Firebase RTDB config listener notice', err);
+      });
+    } catch (e) {}
+  }
 }
 
 export function pushConfigToFirebase(cfg: AppConfig) {
-  if (!db || isApplyingRemoteConfig) return;
-  try {
-    const cfgRef = ref(db, FB_CONFIG_PATH);
-    set(cfgRef, cfg).catch((e) => console.warn('Firebase pushConfig error', e));
-  } catch (e) {}
+  if (isApplyingRemoteConfig) return;
+
+  // 1. Write to Firestore so APK automatically updates
+  if (firestoreDb) {
+    try {
+      const configDocRef = doc(firestoreDb, 'app_config', 'settings');
+      setDoc(configDocRef, cfg, { merge: true }).catch((e) => {
+        console.warn('Firestore pushConfig error:', e);
+      });
+    } catch (e) {}
+  }
+
+  // 2. Write to Realtime Database
+  if (db) {
+    try {
+      const cfgRef = ref(db, FB_CONFIG_PATH);
+      set(cfgRef, cfg).catch((e) => console.warn('Firebase pushConfig error', e));
+    } catch (e) {}
+  }
 }
 
 export function initFirebaseBookingsSync(onBookingsUpdated: (bookings: Booking[]) => void) {

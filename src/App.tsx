@@ -45,6 +45,14 @@ export default function App() {
         setConfig(prev => ({ ...prev, ...remoteCfg }));
       }
     });
+
+    const handleLocalConfigUpdated = (e: any) => {
+      if (e.detail) {
+        pushConfigToFirebase(e.detail);
+      }
+    };
+    window.addEventListener('et_config_updated', handleLocalConfigUpdated);
+    return () => window.removeEventListener('et_config_updated', handleLocalConfigUpdated);
   }, []);
 
   const handleUpdateConfig = (updated: AppConfig) => {

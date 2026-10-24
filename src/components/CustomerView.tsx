@@ -291,8 +291,23 @@ export const CustomerView: React.FC<Props> = ({ config, currentCustomer, onOpenC
 
   // Create Ride Booking
   const handleCreateBooking = () => {
-    if (!fromCoords || !toCoords || !fromLocation || !toLocation) {
-      alert('Please select both Pickup (From) and Drop (To) locations!');
+    const activeFrom = fromLocation.trim();
+    const activeTo = toLocation.trim();
+
+    let fCoords = fromCoords;
+    if (!fCoords && activeFrom) {
+      fCoords = ASSAM_LOCATIONS[activeFrom] || Object.entries(ASSAM_LOCATIONS).find(([k]) => k.toLowerCase().includes(activeFrom.toLowerCase()))?.[1] || [26.6247, 93.6035];
+      setFromCoords(fCoords);
+    }
+
+    let tCoords = toCoords;
+    if (!tCoords && activeTo) {
+      tCoords = ASSAM_LOCATIONS[activeTo] || Object.entries(ASSAM_LOCATIONS).find(([k]) => k.toLowerCase().includes(activeTo.toLowerCase()))?.[1] || [26.626, 93.610];
+      setToCoords(tCoords);
+    }
+
+    if (!activeFrom || !activeTo || !fCoords || !tCoords) {
+      alert('Please select or enter both Pickup (From) and Drop (To) locations!');
       return;
     }
 
@@ -317,7 +332,7 @@ export const CustomerView: React.FC<Props> = ({ config, currentCustomer, onOpenC
 
     const effectiveFare = Math.max(10, calculatedPrice - totalDiscount);
     const otp = Math.floor(1000 + Math.random() * 9000);
-    const mapLink = `https://www.google.com/maps/dir/?api=1&origin=${fromCoords[0]},${fromCoords[1]}&destination=${toCoords[0]},${toCoords[1]}`;
+    const mapLink = `https://www.google.com/maps/dir/?api=1&origin=${fCoords[0]},${fCoords[1]}&destination=${tCoords[0]},${tCoords[1]}`;
     const newBooking: Booking = {
       id: Date.now(),
       customerName: cleanName,
@@ -329,10 +344,10 @@ export const CustomerView: React.FC<Props> = ({ config, currentCustomer, onOpenC
       drop: toLocation,
       to: toLocation,
       toName: toLocation,
-      fromLat: fromCoords[0],
-      fromLng: fromCoords[1],
-      toLat: toCoords[0],
-      toLng: toCoords[1],
+      fromLat: fCoords[0],
+      fromLng: fCoords[1],
+      toLat: tCoords[0],
+      toLng: tCoords[1],
       googleMapLink: mapLink,
       km: distanceKm,
       fare: `₹${effectiveFare}`,
@@ -643,8 +658,7 @@ export const CustomerView: React.FC<Props> = ({ config, currentCustomer, onOpenC
               fromLabel={activeBooking.fromName}
               toLabel={activeBooking.toName}
               driverCoords={activeBooking.driverLoc ? [activeBooking.driverLoc.lat, activeBooking.driverLoc.lng] : undefined}
-              driverName={assignedDriver?.name}
-              driverVehicleIcon={config.vehicles.find(v => v.name === activeBooking.vehicle)?.icon || '🚗'}
+              driverVehicleIcon={activeBooking.vehicle || assignedDriver?.vtype || '🚗'}
               showBlueDotLine={true}
               height="300px"
             />
