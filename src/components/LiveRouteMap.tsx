@@ -252,15 +252,19 @@ export const LiveRouteMap: React.FC<Props> = ({
       }).addTo(map);
 
       // Attempt high-accuracy road routing via OSRM if online
-      fetch(
-        `https://router.project-osrm.org/route/v1/driving/${fromCoords[1]},${fromCoords[0]};${toCoords[1]},${toCoords[0]}?overview=full&geometries=geojson`
-      )
-        .then((res) => res.json())
-        .then((data) => {
-          if (data && data.routes && data.routes[0]) {
-            if (blueRouteLineRef.current) {
-              map.removeLayer(blueRouteLineRef.current);
-            }
+      /* DISABLED OSRM - bahut request bhej raha tha, isliye accept fail + blink
+fetch(`https://router.project-osrm.org/route/v1/driving/${fromCoords[1]},${fromCoords[0]};${toCoords[1]},${toCoords[0]}?overview=full&geometries=geojson`)
+  .then(r => r.json())
+  .then(data => {
+    if (data.routes && data.routes[0]) {
+      const coords = data.routes[0].geometry.coordinates.map((c:any) => [c[1], c[0]]);
+      setRouteLine(coords);
+    }
+  })
+*/
+
+// Simple straight line - stable, no flicker
+setRouteLine([fromCoords, toCoords]);
             blueRouteLineRef.current = L.geoJSON(data.routes[0].geometry, {
               style: {
                 color: '#2563eb',
