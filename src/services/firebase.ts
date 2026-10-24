@@ -12,6 +12,7 @@ export const DEFAULT_FIREBASE_CONFIG: FirebaseApiConfig = {
   apiKey: "AIzaSyCmk5tezl0WeHgQn5diBkfQYF_KsqzwEGw",
   authDomain: "assam-easy-trip.firebaseapp.com",
   projectId: "assam-easy-trip",
+  databaseURL: "https://assam-easy-trip-default-rtdb.firebaseio.com",
   storageBucket: "assam-easy-trip.firebasestorage.app",
   messagingSenderId: "1061198552076",
   appId: "1:1061198552076:web:41407c10c89baa754a6229",
