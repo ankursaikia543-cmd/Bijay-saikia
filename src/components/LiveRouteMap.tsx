@@ -17,7 +17,7 @@ interface LiveRouteMapProps {
   className?: string;
 }
 
-export default function LiveRouteMap({
+export function LiveRouteMap({
   fromCoords,
   toCoords,
   driverCoords,
