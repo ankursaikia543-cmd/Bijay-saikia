@@ -264,7 +264,13 @@ fetch(`https://router.project-osrm.org/route/v1/driving/${fromCoords[1]},${fromC
 */
 
 // Simple straight line - stable, no flicker
-setRouteLine([fromCoords, toCoords]);
+    setRouteLine([fromCoords, toCoords]);
+
+    if (fromCoords && toCoords) {
+      fetch(`https://router.project-osrm.org/route/v1/driving/${fromCoords[1]},${fromCoords[0]};${toCoords[1]},${toCoords[0]}?overview=full&geometries=geojson`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.routes && data.routes[0]) {
             blueRouteLineRef.current = L.geoJSON(data.routes[0].geometry, {
               style: {
                 color: '#2563eb',
@@ -277,7 +283,7 @@ setRouteLine([fromCoords, toCoords]);
         })
         .catch(() => {
           // Keep straight dotted line as fallback
-        })
+        });
     } else if (blueRouteLineRef.current) {
       map.removeLayer(blueRouteLineRef.current);
       blueRouteLineRef.current = null;
