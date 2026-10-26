@@ -107,7 +107,7 @@ export async function saveBookingToFirestore(booking: Booking): Promise<void> {
     vehicle: booking.vehicle || 'Auto',
     otp: String(booking.otp || '1234'),
     km: String(booking.km || '1.0'),
-    status: 'new', // User explicitly requested status: "new"
+    status: 'pending', // User explicitly requested status: "new"
     time: booking.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     createdAt: serverTimestamp()
   };
