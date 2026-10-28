@@ -806,7 +806,7 @@ driverPhone: driver.phone,
 
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 text-[11px] text-slate-500">
                     <div>
-                      Customer: <strong className="text-slate-900">{r.name}</strong> • OTP: <strong className="text-slate-900">{r.otp}</strong> ({r.km} KM)
+                      Customer: <strong className="text-slate-900">{r.name}</strong>
                     </div>
 
                     <a
