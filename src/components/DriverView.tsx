@@ -1026,7 +1026,36 @@ driverPhone: driver.phone,
           showBlueDotLine={true}
           height="320px"
         />
+{activeAcceptedRide && (
+  <div className="bg-white border-2 border-green-500 rounded-2xl p-4 mt-4 shadow-xl">
+    <h3 className="font-bold text-green-700 text-base mb-3">✅ Active Ride - Booking Details</h3>
+    
+    <div className="space-y-2 text-[15px]">
+      <div className="flex justify-between"><span className="text-slate-500">Customer:</span> <span className="font-bold">{activeAcceptedRide.name}</span></div>
+      <div className="flex justify-between"><span className="text-slate-500">Phone:</span> <a href={`tel:${activeAcceptedRide.phone}`} className="font-bold text-blue-600">{activeAcceptedRide.phone}</a></div>
+      <div className="flex justify-between"><span className="text-slate-500">From:</span> <span className="font-bold text-right max-w-[60%]">{activeAcceptedRide.fromName}</span></div>
+      <div className="flex justify-between"><span className="text-slate-500">To:</span> <span className="font-bold text-right max-w-[60%]">{activeAcceptedRide.toName}</span></div>
+      <div className="flex justify-between"><span className="text-slate-500">Fare:</span> <span className="font-bold">{activeAcceptedRide.price}</span></div>
+      <div className="flex justify-between"><span className="text-slate-500">KM:</span> <span className="font-bold">{activeAcceptedRide.km} km</span></div>
+    </div>
 
+    <div className="mt-4 pt-4 border-t border-slate-200">
+      <p className="font-bold text-sm text-slate-800">Customer se 4-digit OTP pucho aur yahan dalo:</p>
+      <input
+        value={otpInput}
+        onChange={(e)=>setOtpInput(e.target.value)}
+        placeholder="••••"
+        className="border-2 border-slate-300 p-3 rounded-xl w-full mt-2 text-center text-2xl tracking-[0.5em] font-bold"
+        maxLength={4}
+        type="tel"
+      />
+      <button onClick={handleCompleteTrip} className="bg-black text-white w-full py-3.5 rounded-xl mt-3 font-bold text-[15px]">
+        Verify OTP & Complete Trip
+      </button>
+      <p className="text-[11px] text-slate-400 mt-2 text-center">OTP driver ko screen pe nahi dikhega, sirf customer se puchna hai</p>
+    </div>
+  </div>
+)}
         {/* Live Status readout */}
         <div className="grid grid-cols-3 gap-2 pt-1 text-center">
           <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
