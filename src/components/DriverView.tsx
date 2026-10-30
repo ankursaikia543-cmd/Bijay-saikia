@@ -1061,10 +1061,10 @@ driverPhone: driver.phone,
     ✕ Cancel Booking
   </button>
 
-        <p className="text-[11px] text-slate-400 mt-2 text-center">OTP driver ko screen pe nahi dikhega, sirf customer se puchna hai</p>
+               <p className="text-[11px] text-slate-400 mt-2 text-center">OTP driver ko screen pe nahi dikhega, sirf customer se pucho</p>
+      </div>
     </div>
-  </div>
-)}
+  )}
         {/* Live Status readout */}
         <div className="grid grid-cols-3 gap-2 pt-1 text-center">
           <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
