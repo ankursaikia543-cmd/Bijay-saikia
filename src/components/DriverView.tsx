@@ -342,6 +342,7 @@ driverPhone: driver.phone,
       driverLoc: { lat: driverCoords[0], lng: driverCoords[1] }
     };
   };
+ // YAHAN PE PASTE KARO - Cancel wala function 
   const handleCancelRide = (bookingId: number | string) => {
     if (!confirm("Booking cancel karni hai?")) return;
     const all = JSON.parse(localStorage.getItem('yatra_bookings') || '[]');
