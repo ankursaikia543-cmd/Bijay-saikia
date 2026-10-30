@@ -385,6 +385,26 @@ driverPhone: driver.phone,
     
     setToastMessage(`Booking cancel ho gayi`);
   };
+  // Cancel Ride
+  const handleCancelRide = async () => {
+    if (!activeAcceptedRide) return;
+    if (!confirm("Booking cancel karni hai? Ye wapas sab drivers ko dikhegi.")) return;
+
+    const bookingId = activeAcceptedRide.id;
+    const all = JSON.parse(localStorage.getItem('yatra_bookings') || '[]');
+    const updatedAll = all.map((b:any) => {
+      if (String(b.id) === String(bookingId)) {
+        return { ...b, status: 'pending', driverId: null, driverPhone: null, driverName: null };
+      }
+      return b;
+    });
+
+    localStorage.setItem('yatra_bookings', JSON.stringify(updatedAll));
+    saveBookings(updatedAll);
+    setActiveAcceptedRide(null);
+    localStorage.removeItem('yatra_activeRide');
+    setToastMessage('❌ Booking cancel ho gayi');
+  };
 
   // Verify OTP & Complete Trip
   const handleCompleteTrip = () => {
