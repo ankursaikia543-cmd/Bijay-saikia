@@ -366,46 +366,7 @@ driverPhone: driver.phone,
     syncDriverToFirestore(driver, driverCoords);
     setToastMessage(`✅ Ride Accepted! Customer: ${updatedTarget.name || updatedTarget.customerName}`);
   };
-  // Cancel Ride - Driver ko pasand nahi aayi booking
-  const handleCancelRide = async (bookingId: string) => {
-    if (!confirm("Cancel karna hai? Ye booking wapas sab drivers ko dikhegi.")) ;
-
-    const all = JSON.parse(localStorage.getItem('yatra_bookings') || '[]');
-    const updatedAll = all.map((b:any) => {
-      if (String(b.id) === String(bookingId)) {
-         { ...b, status: 'pending', driverId: null, driverPhone: null, driverName: null, driverVehNo: null };
-      }
-      return b;
-    });
-
-    localStorage.setItem('yatra_bookings', JSON.stringify(updatedAll));
-    saveBookings(updatedAll);
-    setActiveAcceptedRide(null);
-    setPendingBookings(prev => [...prev, all.find((b:any) => String(b.id) === String(bookingId)) ? {...all.find((b:any) => String(b.id) === String(bookingId)), status: 'pending', driverId: null} : null].filter(Boolean) as any);
-    
-    setToastMessage(`Booking cancel ho gayi`);
-  };
-  // Cancel Ride
-  const handleCancelRide = async () => {
-    if (!activeAcceptedRide) return;
-    if (!confirm("Booking cancel karni hai? Ye wapas sab drivers ko dikhegi.")) return;
-
-    const bookingId = activeAcceptedRide.id;
-    const all = JSON.parse(localStorage.getItem('yatra_bookings') || '[]');
-    const updatedAll = all.map((b:any) => {
-      if (String(b.id) === String(bookingId)) {
-        return { ...b, status: 'pending', driverId: null, driverPhone: null, driverName: null };
-      }
-      return b;
-    });
-
-    localStorage.setItem('yatra_bookings', JSON.stringify(updatedAll));
-    saveBookings(updatedAll);
-    setActiveAcceptedRide(null);
-    localStorage.removeItem('yatra_activeRide');
-    setToastMessage('❌ Booking cancel ho gayi');
-  };
-
+  
   // Verify OTP & Complete Trip
   const handleCompleteTrip = () => {
     if (!activeAcceptedRide) return;
