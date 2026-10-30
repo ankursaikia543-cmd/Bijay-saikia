@@ -78,7 +78,7 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
     const isBikeDriver = (d.includes('bike') || d.includes('moto') || d.includes('motorcycle') || d.includes('two')) && !d.includes('scooty');
     const isBikeRide = (b.includes('bike') || b.includes('moto') || b.includes('motorcycle') || b.includes('two')) && !b.includes('scooty');
     if (isBikeDriver || isBikeRide) {
-      return isBikeDriver && isBikeRide;
+       isBikeDriver && isBikeRide;
     }
 
     // 3. Auto category (Strict: ONLY Auto/Rickshaw/Toto/Tempo)
@@ -247,13 +247,13 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
 
     if (!regName || !regPhone || !regPass || !regVehNo) {
       setAuthError('Sabhi fields bharna anivarya hai!');
-      return;
+      ;
     }
 
     const drivers = getDrivers();
     if (drivers.find(d => d.phone === regPhone.trim())) {
       setAuthError('Yeh Phone number pehle se registered hai!');
-      return;
+      ;
     }
 
     const newDriver: Driver = {
@@ -286,7 +286,7 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
   // Handle Photo selection
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) ;
     const reader = new FileReader();
     reader.onload = (ev) => {
       setRegPhoto(ev.target?.result as string);
@@ -296,7 +296,7 @@ export const DriverView: React.FC<Props> = ({ config, soundConfig, onOpenSoundSe
 
   // Accept Ride (Stops ringtone immediately!)
   const handleAcceptRide = async (bookingId: number | string) => {
-    if (!driver) return;
+    if (!driver) ;
     soundService.stopContinuousRingtone(); // STOP RINGTONE IMMEDIATELY!
 
     const all = getBookings();
@@ -368,12 +368,12 @@ driverPhone: driver.phone,
   };
   // Cancel Ride - Driver ko pasand nahi aayi booking
   const handleCancelRide = async (bookingId: string) => {
-    if (!confirm("Cancel karna hai? Ye booking wapas sab drivers ko dikhegi.")) return;
+    if (!confirm("Cancel karna hai? Ye booking wapas sab drivers ko dikhegi.")) ;
 
     const all = JSON.parse(localStorage.getItem('yatra_bookings') || '[]');
     const updatedAll = all.map((b:any) => {
       if (String(b.id) === String(bookingId)) {
-        return { ...b, status: 'pending', driverId: null, driverPhone: null, driverName: null, driverVehNo: null };
+         { ...b, status: 'pending', driverId: null, driverPhone: null, driverName: null, driverVehNo: null };
       }
       return b;
     });
@@ -1092,7 +1092,15 @@ driverPhone: driver.phone,
       <button onClick={handleCompleteTrip} className="bg-black text-white w-full py-3.5 rounded-xl mt-3 font-bold text-[15px]">
         Verify OTP & Complete Trip
       </button>
-      <p className="text-[11px] text-slate-400 mt-2 text-center">OTP driver ko screen pe nahi dikhega, sirf customer se puchna hai</p>
+      
+  <button
+    onClick={handleCancelRide}
+    className="w-full py-3.5 rounded-xl mt-3 font-bold text-[14px] border-2 border-red-500 text-red-600 bg-white hover:bg-red-50"
+  >
+    ✕ Cancel Booking
+  </button>
+
+        <p className="text-[11px] text-slate-400 mt-2 text-center">OTP driver ko screen pe nahi dikhega, sirf customer se puchna hai</p>
     </div>
   </div>
 )}
