@@ -341,7 +341,24 @@ driverPhone: driver.phone,
       driverVehNo: driver.vehno,
       driverLoc: { lat: driverCoords[0], lng: driverCoords[1] }
     };
+  };
+  const handleCancelRide = (bookingId: number | string) => {
+    if (!confirm("Booking cancel karni hai?")) return;
+    const all = JSON.parse(localStorage.getItem('yatra_bookings') || '[]');
+    const updated = all.map((b:any) => {
+      if (String(b.id) === String(bookingId)) {
+        return { ...b, status: 'pending', driverId: null, driver: null };
+      }
+      return b;
+    });
+    localStorage.setItem('yatra_bookings', JSON.stringify(updated));
+    localStorage.removeItem('yatra_activeRide');
+    alert("Cancel ho gaya");
+    window.location.reload();
+  };
 
+  // Save into local storage
+  const updatedAll = [updatedTarget, ...all.filter...
     // Save into local storage
     const updatedAll = [updatedTarget, ...all.filter(b => String(b.id) !== String(bookingId))];
     saveBookings(updatedAll);
